@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Western blot 样本配平工具：变性后重新配平、上样配平、ImageJ 配平、未变性样品配平。" />
+  <meta name="theme-color" content="#0d9488" />
+  <title>WB 样本配平工具</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="header-brand">
+        <span class="brand-bold">YDchen</span><span class="brand-light">Tools</span>
+      </div>
+      <div class="header-divider" aria-hidden="true"></div>
+      <div class="header-info">
+        <h1>WB 样本配平工具</h1>
+        <p class="subtitle">变性后重新配平 · 上样配平 · ImageJ 配平 · 未变性样品配平</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-grid">
+    <section class="card settings-card" aria-labelledby="settings-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="settings-title">第 1 步 · 参数设置</h2>
+        </div>
+        <button id="resetBtn" class="button button-ghost" type="button">恢复默认</button>
+      </div>
+
+      <label class="field" style="margin-bottom:14px;">
+        <span>配平模式</span>
+        <select id="workflowSelect">
+          <option value="equalize" selected>变性后重新配平</option>
+          <option value="perWell">上样配平</option>
+          <option value="rebalance">ImageJ 配平</option>
+          <option value="prep">未变性样品配平</option>
+        </select>
+      </label>
+      <p id="modeDescription" class="mode-description"></p>
+
+      <div class="form-grid">
+        <label id="targetMassField" class="field hidden">
+          <span>每孔目标蛋白量</span>
+          <div class="input-with-unit">
+            <input id="targetMass" type="number" min="0.01" step="0.1" value="20" inputmode="decimal" />
+            <span>µg</span>
+          </div>
+        </label>
+
+        <label id="finalVolumeField" class="field hidden">
+          <span>统一上样体积</span>
+          <div class="input-with-unit">
+            <input id="finalVolume" type="number" min="0.1" step="0.5" value="20" inputmode="decimal" />
+            <span>µL</span>
+          </div>
+        </label>
+
+        <label id="currentVolumeField" class="field hidden">
+          <span>样本当前体积</span>
+          <div class="input-with-unit">
+            <input id="currentVolume" type="number" min="0.1" step="0.5" value="100" inputmode="decimal" />
+            <span>µL</span>
+          </div>
+        </label>
+        <label id="individualVolumeToggle" class="hidden toggle-field">
+          <input type="checkbox" id="useIndividualVolume" />
+          <span>各样本体积不同（可逐样本填写各自的体积）</span>
+        </label>
+
+        <label id="bufferFactorField" class="field hidden">
+          <span>Loading Buffer 倍数</span>
+          <select id="loadingBufferFactor">
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+            <option value="5" selected>5×</option>
+            <option value="6">6×</option>
+          </select>
+        </label>
+
+        <label id="lossMarginField" class="field hidden">
+          <span>损耗余量 <small style="font-weight:400;color:var(--muted);">（总体积按此比例放大）</small></span>
+          <div class="input-with-unit">
+            <input id="lossMargin" type="number" min="0" step="1" max="50" value="0" inputmode="decimal" />
+            <span>%</span>
+          </div>
+        </label>
+      </div>
+
+      <p id="rebalanceNotice" class="hidden" style="margin:8px 0 0;color:var(--muted);font-size:.84rem;">当前计算适用于各样本上一轮取样体积相同的情况。如体积不同，请填写表格中的"上轮取样体积"列。</p>
+
+      <div id="formulaNote" class="formula-note"></div>
+      <div id="imagejTips" class="imagej-tips hidden">
+        <strong>ImageJ 定量注意事项</strong>
+        <ul>
+          <li>条带不能过曝或饱和，确保信号在线性范围内</li>
+          <li>所有数据应来自同一张膜和相同曝光条件</li>
+          <li>ROI 大小和背景扣除方法应保持一致</li>
+          <li>内参信号应处于线性范围，过高或过低都会影响定量准确性</li>
+          <li>异常条带（如拖尾、空心、斑点）应先复核原图，再决定是否参与配平</li>
+        </ul>
+      </div>
+
+    </section>
+
+    <section class="card samples-card" aria-labelledby="samples-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="samples-title">第 2 步 · 录入样本数据</h2>
+        </div>
+        <div class="button-row">
+          <button id="pasteBtn" class="button button-ghost" type="button">粘贴数据</button>
+          <button id="addSampleBtn" class="button button-primary" type="button">＋ 添加样本</button>
+        </div>
+      </div>
+
+      <textarea id="pasteArea" class="paste-area hidden" placeholder="从 Excel 复制数据后粘贴到此处（制表符分隔）…" rows="4"></textarea>
+
+      <div class="table-wrap">
+        <table id="samplesTable">
+          <thead>
+            <tr>
+              <th scope="col">样本名称</th>
+              <th scope="col" id="volumeHeader" class="hidden">样本体积 (µL)</th>
+              <th scope="col" id="concentrationHeader">蛋白浓度 (µg/µL)</th>
+              <th scope="col" id="prevVolumeHeader" class="hidden">上轮取样体积 (µL)</th>
+              <th scope="col" id="availableHeader">可用体积 (µL，可选)</th>
+              <th scope="col" id="imageHeader">ImageJ 内参值</th>
+              <th scope="col" class="action-col">操作</th>
+            </tr>
+          </thead>
+          <tbody id="samplesBody"></tbody>
+        </table>
+      </div>
+      <p class="help-text">浓度单位可使用 µg/µL 或 mg/mL（数值相同）。</p>
+
+      <div class="button-row" style="margin-top:8px;">
+        <button id="clearDataBtn" class="button button-ghost" type="button" style="font-size:.82rem;">清空数据</button>
+        <button id="exampleDataBtn" class="button button-ghost" type="button" style="font-size:.82rem;">示例数据</button>
+      </div>
+    </section>
+
+    <section class="card results-card" aria-labelledby="results-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="results-title">第 3 步 · 配平结果</h2>
+        </div>
+        <div class="button-row">
+          <button id="copyBtn" class="button button-ghost" type="button">复制结果</button>
+        </div>
+      </div>
+
+      <div id="summary" class="summary-grid" aria-live="polite"></div>
+      <div id="alerts" class="alerts" aria-live="polite"></div>
+
+      <div class="table-wrap">
+        <table id="resultsTable">
+          <thead><tr id="resultsHead"></tr></thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card notes-card" aria-labelledby="notes-title">
+      <h2 id="notes-title">使用说明</h2>
+      <ul>
+        <li><strong>变性后重新配平：</strong>样本已变性且体积一致，以最低浓度为目标，通过加入 1× Loading 将各样本稀释至等浓度。最低浓度样本无需稀释。</li>
+        <li><strong>上样配平：</strong>按每孔目标蛋白量和各样本浓度计算取样体积，用 1× Loading 补足到统一上样体积。</li>
+        <li><strong>ImageJ 配平：</strong>以 ImageJ 内参值作为相对浓度，按参考值与各样本的比值修正取样体积。</li>
+        <li><strong>未变性样品配平：</strong>适用于未变性的蛋白样品，计算样品、Loading Buffer 和补液体积，支持损耗余量。</li>
+        <li>结果仅用于体积计算辅助，请结合试剂说明书、实验室 SOP、移液器量程和最小可靠移液体积复核。</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">WB 样本配平工具</div>
+  </footer>
+
+  <template id="sampleRowTemplate">
+    <tr>
+      <td><input class="sample-name" type="text" maxlength="50" aria-label="样本名称" /></td>
+      <td class="sample-volume-cell hidden"><input class="sample-volume" type="number" min="0.1" step="1" inputmode="decimal" aria-label="样本体积" placeholder="例如 100" /></td>
+      <td class="sample-concentration-cell"><input class="sample-concentration" type="number" min="0" step="0.01" inputmode="decimal" aria-label="蛋白浓度" /></td>
+      <td class="sample-prevvolume-cell hidden"><input class="sample-prevvolume" type="number" min="0" step="0.1" inputmode="decimal" aria-label="上轮取样体积" placeholder="可不填" /></td>
+      <td class="sample-available-cell"><input class="sample-available" type="number" min="0" step="0.1" inputmode="decimal" aria-label="可用体积" placeholder="可不填" /></td>
+      <td class="sample-image-cell"><input class="sample-image" type="number" min="0" step="0.001" inputmode="decimal" aria-label="ImageJ 内参值" placeholder="例如 1.000" /></td>
+      <td class="action-col">
+        <button class="icon-button copy-row-btn" type="button" aria-label="复制样本" title="复制">+</button>
+        <button class="icon-button remove-sample" type="button" aria-label="删除样本">×</button>
+      </td>
+    </tr>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
