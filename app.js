@@ -163,7 +163,7 @@ function getModeDescription() {
     return '按每孔目标蛋白量和各样本浓度计算取样体积，用 1× Loading 补足到统一上样体积。';
   }
   if (state.workflowMode === 'rebalance') {
-    return '以 ImageJ 内参值作为相对浓度，按参考值与各样本的比值修正取样体积。适用于上一轮各样本取样体积相同的情况。';
+    return '根据 ImageJ 内参值修正取样体积。如果上一轮各样本取样体积相同，可直接使用 ImageJ 值；如果取样体积不同，请填写所有样本的上轮取样体积，程序将按 ImageJ ÷ 上轮体积计算相对浓度。';
   }
   return '适用于未变性的蛋白样品。输入蛋白浓度后，自动计算样品、Loading Buffer 和补液体积。';
 }
@@ -452,10 +452,9 @@ function renderResults(result) {
       '<td>' + st + '</td></tr>';
   }).join('');
 
-  // 有全局错误时禁用复制按钮
-  var hasGlobalError = Boolean(summary.marginError) || Boolean(summary.partialPrevError);
-  elements.copyBtn.disabled = hasGlobalError;
-  elements.copyBtn.textContent = hasGlobalError ? '存在错误，无法复制' : '复制结果';
+  // 任何错误都禁用复制
+  elements.copyBtn.disabled = errCount > 0;
+  elements.copyBtn.textContent = errCount > 0 ? '存在错误，无法复制' : '复制结果';
 }
 
 // ---------- 样本操作 ----------

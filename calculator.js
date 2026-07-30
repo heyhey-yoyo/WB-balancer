@@ -315,6 +315,7 @@ function calculateRebalance(samples, settings) {
       totalWithMargin: totalWithMargin,
       scaleFactor: scaleFactor,
       lossMargin: lossMargin,
+      marginError: marginError,
       reference: reference,
       partialPrevError: partialPrevError,
       useNormalized: relativeConcs !== null,

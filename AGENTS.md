@@ -101,7 +101,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
 
-- 运行测试：`node tests/test-calculator.js`（应输出 `115 passed, 0 failed`）
+- 运行测试：`node tests/test-calculator.js`（应输出 `120 passed, 0 failed`）
 - 语法检查：`node --check calculator.js && node --check app.js`
 - 本地预览（任选其一）：
   - 直接双击打开 `index.html`；

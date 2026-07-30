@@ -462,5 +462,23 @@ assert(r.summary.scaleFactor === 1, '0% → scaleFactor = 1');
 assertNotNull(r.results[0].sampleVolume, '0% → sampleVolume not null');
 
 // ============================================================
+// ImageJ summary.marginError 写入验证
+// ============================================================
+console.log('\n--- ImageJ summary.marginError ---');
+
+r = calc.calculateRebalance([
+  { name: 'A', imageIntensity: '1.0' }
+], { finalVolume: 20, lossMargin: 51 });
+assertNotNull(r.summary.marginError, 'ImageJ 51% → summary.marginError 不为空');
+assertNull(r.summary.scaleFactor, 'ImageJ 51% → scaleFactor null');
+assertNull(r.results[0].sampleVolume, 'ImageJ 51% → sampleVolume null');
+
+r = calc.calculateRebalance([
+  { name: 'A', imageIntensity: '1.0' }
+], { finalVolume: 20, lossMargin: 10 });
+assertNull(r.summary.marginError, 'ImageJ 10% → marginError null');
+assert(r.summary.scaleFactor > 1, 'ImageJ 10% → scaleFactor > 1');
+
+// ============================================================
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 if (failed > 0) process.exit(1);
