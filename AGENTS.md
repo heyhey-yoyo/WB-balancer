@@ -34,8 +34,8 @@
 .
 ├── index.html       # 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明
 ├── styles.css       # 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色
-├── calculator.js    # 所有纯计算逻辑（约 300 行），见下
-├── app.js           # UI 控制器（约 370 行），见下
+├── calculator.js    # 所有纯计算逻辑（约 380 行），见下
+├── app.js           # UI 控制器（约 620 行），见下
 ├── tests/
 │   └── test-calculator.js  # 导入 calculator.js，186+ 测试
 ├── wrangler.toml    # Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "."
@@ -46,19 +46,19 @@
 
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
-1. 工具函数：`toFiniteNumber()` / `roundToStepUp()`（向上取整，保证蛋白量不低于目标）/ `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleComplete()`（判定样本字段完整有效）
+1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleComplete()`（判定样本字段完整有效）
 2. 各模式计算：`calculateEqualize()` / `calculatePerWell()` / `calculateRebalance()` / `calculatePrep()`——统一返回 `{ results, reference, summary }`
-3. 计算链：理论体积 → 预稀释检查 → 实际移液体积（向上取整）→ 补液/Loading（基于实际移液量重算）
+3. 计算链：理论体积 → 预稀释检查 → Loading/补液（基于预稀释调整后体积）。不做移液取整，展示理论体积由用户自行判断。
 4. 末端 `module.exports` 块用于 Node 测试，浏览器环境忽略
 
 `app.js` 内部分层（从上到下）：
 
 1. DOM 引用集中在 `elements` 对象中
-2. 格式化函数：`formatVolume()` / `formatNumber()` / `formatConcentration()` / `formatIntensity()` / `escapeHtml()` / `formatPercent()`
+2. 格式化函数：`formatVolume()` / `formatNumber()` / `formatConcentration()` / `formatIntensity()` / `escapeHtml()`
 3. 状态管理：`getDefaultState()` / `loadState()` / `saveState()`（localStorage，序列化前移除 `samples` 引用避免重复）/ `loadModeSamples()`（`state.samples` 直接引用 `state.samplesByMode[mode]`，不再双写）
 4. `syncControlsFromState()`：按当前模式显示/隐藏对应设置项，prep 模式下显示目标蛋白量和最终体积
 5. `calculate()`：读取设置 → 委托对应 calculator 函数 → `renderResults()` + `saveState()`
-6. 渲染：`renderSampleRows()`（按模式显示不同列）、`renderResults()`（统计卡片 + 提示条 + 结果表格，含实际蛋白量和误差%）
+6. 渲染：`renderSampleRows()`（按模式显示不同列）、`renderResults()`（统计卡片 + 提示条 + 结果表格）
 7. `pasteData()`：按模式列映射（equalize: name/concentration/availableVolume；perWell: name/concentration/availableVolume；rebalance: name/imageIntensity/availableVolume/prevVolume；prep: name/concentration/availableVolume）
 8. `copyResults()`（剪贴板 API 失败时降级为 `window.prompt`）
 9. `bindEvents()` + 文件末尾的初始化调用（单次 `calculate()`）
@@ -92,7 +92,7 @@ prep：样品体积 = 目标蛋白量 ÷ 浓度；
 
 没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
 
-- 运行测试：`node tests/test-calculator.js`（应输出 `186 passed, 0 failed`）
+- 运行测试：`node tests/test-calculator.js`（应输出 `148 passed, 0 failed`）
 - 语法检查：`node --check calculator.js && node --check app.js`
 - 本地预览（任选其一）：
   - 直接双击打开 `index.html`；
@@ -104,17 +104,17 @@ prep：样品体积 = 目标蛋白量 ÷ 浓度；
 
 ## 验证改动的方式
 
-1. `node tests/test-calculator.js`（186+ tests, 0 failed）和 `node --check calculator.js && node --check app.js` 通过；
+1. `node tests/test-calculator.js`（148+ tests, 0 failed）和 `node --check calculator.js && node --check app.js` 通过；
 2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
-3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、实际蛋白量 ≥ 目标蛋白量、校验消息和状态徽章正确；
-4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果（含实际蛋白和误差%）；
+3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
+4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
 5. 刷新页面确认状态（含各模式各自的样本）从 localStorage 恢复；点"恢复默认"确认重置；
 6. 打开浏览器控制台确认无报错、无 CSP 违规。
 
 ## 代码风格与约定
 
 - 文件顶部 `'use strict';`；函数声明式（`function name()`），无类、无模块系统；现状使用 `var`，新增代码保持与周围一致。
-- 纯计算逻辑（公式、校验、取整）写入 `calculator.js`；展示逻辑（格式化、DOM 操作、localStorage）写入 `app.js`。计算函数必须是纯函数，不访问 DOM。
+- 纯计算逻辑（公式、校验）写入 `calculator.js`；展示逻辑（格式化、DOM 操作、localStorage）写入 `app.js`。计算函数必须是纯函数，不访问 DOM。
 - JSON 序列化时 `state.samples` 会被删除（它是 `samplesByMode[mode]` 的引用，避免重复存储）。
 - 数值处理统一走 `toFiniteNumber()`（空值返回 `null`）；显示格式化统一走 `formatVolume()` / `formatConcentration()` / `formatNumber()`。
 - 比较浮点数时使用 `1e-9` 容差，不要改成严格相等。
