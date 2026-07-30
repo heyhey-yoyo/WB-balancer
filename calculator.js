@@ -16,9 +16,6 @@ function toFiniteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-/**
- * 建议预稀释方案。理论体积 < 最小可靠体积时返回稀释倍数和调整后体积。
- */
 function suggestPreDilution(theoretical, minVol) {
   if (!Number.isFinite(theoretical) || theoretical <= 0) return null;
   if (!Number.isFinite(minVol) || minVol <= 0) return null;
@@ -28,20 +25,27 @@ function suggestPreDilution(theoretical, minVol) {
 }
 
 /**
- * 校验损耗余量范围 0%–50%。
+ * 校验预计损耗率范围 0%–50%。
+ * 公式：放大系数 = 1 / (1 − 损耗率)，严格补偿损耗后仍满足目标。
  */
 function validateLossMargin(value) {
   var num = toFiniteNumber(value);
-  if (num === null) return { valid: false, value: null, message: '损耗余量无效' };
-  if (num < 0) return { valid: false, value: num, message: '损耗余量不能为负数' };
-  if (num > 50) return { valid: false, value: num, message: '损耗余量不能超过 50%' };
+  if (num === null) return { valid: false, value: null, message: '预计损耗率无效' };
+  if (num < 0) return { valid: false, value: num, message: '预计损耗率不能为负数' };
+  if (num > 50) return { valid: false, value: num, message: '预计损耗率不能超过 50%' };
   return { valid: true, value: num, message: '' };
 }
 
 /**
- * 判定样本在当前模式下数值是否有效（只看数字字段，不看名称）。
- * 用于计算最低浓度/参考值——样品名称不应影响数值算法。
+ * 根据预计损耗率计算放大系数。
+ * scaleFactor = 1 / (1 − lossPercent / 100)
+ * 例如 10% 损耗 → 1/0.9 ≈ 1.1111，保证损耗后剩余量恰好等于目标。
  */
+function lossScaleFactor(lossPercent) {
+  if (!Number.isFinite(lossPercent) || lossPercent <= 0) return 1;
+  return 1 / (1 - lossPercent / 100);
+}
+
 function isSampleNumericallyValid(sample, mode, useIndividualVolume) {
   if (mode === 'equalize') {
     var conc = toFiniteNumber(sample.concentration);
@@ -63,10 +67,6 @@ function isSampleNumericallyValid(sample, mode, useIndividualVolume) {
   return false;
 }
 
-/**
- * 判定样本信息是否完整（含名称）。
- * 用于界面提示——名称为空时显示警告，但不影响参考值计算。
- */
 function isSampleComplete(sample, mode, useIndividualVolume) {
   if (!sample.name || !sample.name.trim()) return false;
   return isSampleNumericallyValid(sample, mode, useIndividualVolume);
@@ -74,11 +74,7 @@ function isSampleComplete(sample, mode, useIndividualVolume) {
 
 // ---------- 各模式计算 ----------
 
-/**
- * 变性后重新配平 (equalize)
- */
 function calculateEqualize(samples, currentVolume, useIndividualVolume) {
-  // 用数值有效性（不含名称）筛选参与参考值计算的样本
   var validSamples = samples.filter(function (s) {
     return isSampleNumericallyValid(s, 'equalize', useIndividualVolume);
   });
@@ -137,7 +133,9 @@ function calculateEqualize(samples, currentVolume, useIndividualVolume) {
 
 /**
  * 上样配平 (perWell)
- * 损耗余量同比放大样品量和总体积，保证损耗后剩余蛋白量仍满足目标。
+ * 预计损耗率通过严格补偿公式同比放大样品量和总体积：
+ * scaleFactor = 1 / (1 − lossMargin/100)
+ * 保证配制量 × (1 − 损耗率) = 目标量。
  */
 function calculatePerWell(samples, settings) {
   var targetMass = settings.targetMass;
@@ -145,8 +143,8 @@ function calculatePerWell(samples, settings) {
   var lossMargin = settings.lossMargin;
   var minVol = 0.5;
 
-  var marginRatio = lossMargin / 100;
-  var totalWithMargin = finalVolume * (1 + marginRatio);
+  var scaleFactor = lossScaleFactor(lossMargin);
+  var totalWithMargin = finalVolume * scaleFactor;
 
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
@@ -157,17 +155,12 @@ function calculatePerWell(samples, settings) {
     var conc = toFiniteNumber(sample.concentration);
     var availableVol = toFiniteNumber(sample.availableVolume);
 
-    // 理论取样体积（损耗前）
+    // 理论取样体积 × 损耗补偿系数
     var theoreticalVol = conc > 0 && targetMass > 0 ? targetMass / conc : null;
-    // 损耗余量同比放大样品量
-    var sampleVolBase = Number.isFinite(theoreticalVol) ? theoreticalVol * (1 + marginRatio) : null;
-    // 预稀释检查（基于放大后的体积）
+    var sampleVolBase = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
     var dilution = suggestPreDilution(sampleVolBase, minVol);
-    // 预稀释后的移液体积
     var sampleVol = dilution ? dilution.adjustedVolume : sampleVolBase;
-    // 原液实际消耗量 = 理论取样体积 × (1 + 损耗)
-    var originalConsumed = Number.isFinite(theoreticalVol) ? theoreticalVol * (1 + marginRatio) : null;
-    // Loading = 总体积 - 样品移液体积
+    var originalConsumed = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
     var loading = Number.isFinite(sampleVol) && totalWithMargin > 0 ? totalWithMargin - sampleVol : null;
 
     var msgs = [];
@@ -181,7 +174,6 @@ function calculatePerWell(samples, settings) {
     if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('统一上样体积无效');
     if (marginError) e(marginError);
     if (Number.isFinite(loading) && loading < -1e-9) e('样品体积超过总体积，请降低目标蛋白量或增大上样体积');
-    // 可用体积：用原液消耗量检查，不是稀释后体积
     if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) w('可用体积不足');
     if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
       w('取样体积 ' + sampleVolBase.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
@@ -207,6 +199,7 @@ function calculatePerWell(samples, settings) {
       targetMass: targetMass,
       finalVolume: finalVolume,
       totalWithMargin: totalWithMargin,
+      scaleFactor: scaleFactor,
       lossMargin: lossMargin,
       marginError: marginError,
       validCount: validSamples.length,
@@ -219,25 +212,23 @@ function calculatePerWell(samples, settings) {
  * ImageJ 配平 (rebalance)
  *
  * 上轮取样体积处理规则：
- *   - 所有有效样本都填了 prevVolume → 按"相对浓度 = ImageJ ÷ 上轮体积"归一化
- *   - 所有有效样本都没填 prevVolume → 直接用 ImageJ 值作为相对浓度
- *   - 部分填写 → 报错，不允许混用计算基准
+ *   - 都填了 → 按"相对浓度 = ImageJ ÷ 上轮体积"归一化
+ *   - 都没填 → 直接用 ImageJ 值作为相对浓度
+ *   - 部分填写 → 报错
  */
 function calculateRebalance(samples, settings) {
   var finalVolume = settings.finalVolume;
   var lossMargin = settings.lossMargin;
   var minVol = 0.5;
 
-  var marginRatio = lossMargin / 100;
-  var totalWithMargin = finalVolume * (1 + marginRatio);
+  var scaleFactor = lossScaleFactor(lossMargin);
+  var totalWithMargin = finalVolume * scaleFactor;
 
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
 
-  // 数值有效的样本
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'rebalance', false); });
 
-  // 检查 prevVolume 填写一致性
   var validWithPrev = validSamples.filter(function (s) {
     var pv = toFiniteNumber(s.prevVolume);
     return Number.isFinite(pv) && pv > 0;
@@ -247,21 +238,18 @@ function calculateRebalance(samples, settings) {
     partialPrevError = '上轮取样体积必须全部填写或全部留空，不允许部分填写';
   }
 
-  // 计算参考值
+  // 计算参考值：归一化模式用相对浓度，否则用原始 ImageJ
   var reference = null;
-  var relativeConcs = null; // { imageIntensity, prevVolume, relativeConc }
+  var relativeConcs = null;
   if (!partialPrevError && validSamples.length > 0) {
     if (validWithPrev.length > 0) {
-      // 有上轮体积：按相对浓度归一化
       relativeConcs = validWithPrev.map(function (s) {
         var iv = toFiniteNumber(s.imageIntensity);
         var pv = toFiniteNumber(s.prevVolume);
         return { imageIntensity: iv, prevVolume: pv, relativeConc: iv / pv };
       });
-      var minRel = Math.min.apply(null, relativeConcs.map(function (r) { return r.relativeConc; }));
-      reference = minRel;
+      reference = Math.min.apply(null, relativeConcs.map(function (r) { return r.relativeConc; }));
     } else {
-      // 无上轮体积：直接用 ImageJ 值
       var intensities = validSamples.map(function (s) { return toFiniteNumber(s.imageIntensity); });
       reference = Math.min.apply(null, intensities);
     }
@@ -276,21 +264,17 @@ function calculateRebalance(samples, settings) {
     var sampleVol = null;
     if (reference !== null && Number.isFinite(imageVal) && imageVal > 0) {
       if (relativeConcs) {
-        // 归一化模式：sampleVol = totalWithMargin × 参考相对浓度 ÷ 样本相对浓度
         var rc = hasPrev ? imageVal / prevVol : null;
         if (Number.isFinite(rc) && rc > 0) {
           sampleVol = totalWithMargin * reference / rc;
         }
       } else {
-        // 直接模式：sampleVol = totalWithMargin × 参考值 ÷ ImageJ 值
         sampleVol = totalWithMargin * reference / imageVal;
       }
     }
 
-    // 预稀释
     var dilution = suggestPreDilution(sampleVol, minVol);
     var pipettingVol = dilution ? dilution.adjustedVolume : sampleVol;
-    // 原液消耗量 = 样品体积（预稀释前的值，即实际消耗的原液量）
     var originalConsumed = sampleVol;
     var loading = Number.isFinite(pipettingVol) && totalWithMargin > 0 ? totalWithMargin - pipettingVol : null;
 
@@ -306,7 +290,6 @@ function calculateRebalance(samples, settings) {
     if (partialPrevError) e(partialPrevError);
     if (reference === null && (Number.isFinite(imageVal) && imageVal > 0)) e('至少需要一个有效样本');
     if (Number.isFinite(loading) && loading < -1e-9) e('计算错误');
-    // 可用体积：用原液消耗量检查
     if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) w('可用体积不足');
     if (Number.isFinite(sampleVol) && sampleVol > 0 && sampleVol < minVol && dilution) {
       w('取样体积 ' + sampleVol.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
@@ -331,6 +314,7 @@ function calculateRebalance(samples, settings) {
       mode: 'rebalance',
       finalVolume: finalVolume,
       totalWithMargin: totalWithMargin,
+      scaleFactor: scaleFactor,
       lossMargin: lossMargin,
       reference: reference,
       partialPrevError: partialPrevError,
@@ -343,7 +327,7 @@ function calculateRebalance(samples, settings) {
 
 /**
  * 未变性样品配平 (prep)
- * 损耗余量同比放大所有组分，守恒：sampleVol + loadingBufferVol + makeupVol = totalWithMargin
+ * 预计损耗率通过严格补偿公式同比放大所有组分。
  */
 function calculatePrep(samples, settings) {
   var targetMass = settings.targetMass;
@@ -352,8 +336,8 @@ function calculatePrep(samples, settings) {
   var lossMargin = settings.lossMargin;
   var minVol = 0.5;
 
-  var marginRatio = lossMargin / 100;
-  var totalWithMargin = finalVolume * (1 + marginRatio);
+  var scaleFactor = lossScaleFactor(lossMargin);
+  var totalWithMargin = finalVolume * scaleFactor;
 
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
@@ -364,18 +348,12 @@ function calculatePrep(samples, settings) {
     var conc = toFiniteNumber(sample.concentration);
     var availableVol = toFiniteNumber(sample.availableVolume);
 
-    // 理论样品体积（损耗前）
     var theoreticalVol = conc > 0 && targetMass > 0 ? targetMass / conc : null;
-    // 损耗余量同比放大样品量
-    var sampleVolBase = Number.isFinite(theoreticalVol) ? theoreticalVol * (1 + marginRatio) : null;
-    // 预稀释
+    var sampleVolBase = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
     var dilution = suggestPreDilution(sampleVolBase, minVol);
     var sampleVol = dilution ? dilution.adjustedVolume : sampleVolBase;
-    // 原液消耗量 = 理论取样 × (1 + 损耗)
-    var originalConsumed = Number.isFinite(theoreticalVol) ? theoreticalVol * (1 + marginRatio) : null;
-    // Loading Buffer 体积
+    var originalConsumed = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
     var loadingBufferVol = totalWithMargin > 0 && bufferFactor > 0 ? totalWithMargin / bufferFactor : null;
-    // 补液体积 = 总体积 - 样品体积 - Loading Buffer
     var makeupVol = null;
     if (Number.isFinite(sampleVol) && Number.isFinite(loadingBufferVol)) {
       makeupVol = totalWithMargin - sampleVol - loadingBufferVol;
@@ -394,7 +372,6 @@ function calculatePrep(samples, settings) {
     if (!Number.isFinite(bufferFactor) || bufferFactor <= 0) e('Loading Buffer 倍数无效');
     if (marginError) e(marginError);
     if (Number.isFinite(makeupVol) && makeupVol < -1e-9) e('补液体积为负，当前参数不可配制，请调整目标蛋白量或最终体积');
-    // 可用体积：用原液消耗量检查
     if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) w('可用体积不足');
     if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
       w('样品体积 ' + sampleVolBase.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
@@ -419,6 +396,7 @@ function calculatePrep(samples, settings) {
       targetMass: targetMass,
       finalVolume: finalVolume,
       totalWithMargin: totalWithMargin,
+      scaleFactor: scaleFactor,
       bufferFactor: bufferFactor,
       lossMargin: lossMargin,
       marginError: marginError,
@@ -434,6 +412,7 @@ if (typeof module !== 'undefined' && module.exports) {
     toFiniteNumber: toFiniteNumber,
     suggestPreDilution: suggestPreDilution,
     validateLossMargin: validateLossMargin,
+    lossScaleFactor: lossScaleFactor,
     isSampleComplete: isSampleComplete,
     isSampleNumericallyValid: isSampleNumericallyValid,
     calculateEqualize: calculateEqualize,

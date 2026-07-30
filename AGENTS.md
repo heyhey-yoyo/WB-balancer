@@ -72,37 +72,36 @@
 equalize：目标浓度 = min(所有数值有效样本浓度)；总蛋白量 = 浓度 × 体积；
           最终体积 = 总蛋白量 ÷ 目标浓度；需加 1× Loading = 最终体积 − 当前体积
           样品名称不影响参考值计算
-perWell：放大系数 = (1 + 损耗%)；
-         样品体积 = 目标蛋白量 ÷ 浓度 × 放大系数； // 损耗余量同比放大
+perWell：scaleFactor = 1 / (1 − 预计损耗率)；
+         样品体积 = 目标蛋白量 ÷ 浓度 × scaleFactor；
          预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
-         1× Loading = 上样体积 × 放大系数 − 样品体积；
-         守恒：样品体积 + Loading = 总上样体积（含损耗）
+         1× Loading = 上样体积 × scaleFactor − 样品体积；
+         校验：样品体积 × 浓度 × (1 − 损耗率) ≈ 目标蛋白量
 rebalance：
-  - 无上轮体积：参考值 = min(所有数值有效 ImageJ 值)；
-    样品体积 = 总上样体积 × (参考值 ÷ ImageJ 值)
-  - 有上轮体积：相对浓度 = ImageJ ÷ 上轮体积；参考浓度 = min(相对浓度)；
-    样品体积 = 总上样体积 × 参考浓度 ÷ 当前相对浓度
+  - 无上轮体积：参考值 = min(ImageJ 值)；样品体积 = 总上样体积 × scaleFactor × (参考值 ÷ ImageJ 值)
+  - 有上轮体积：相对浓度 = ImageJ ÷ 上轮体积；参考值 = min(相对浓度)；
+    样品体积 = 总上样体积 × scaleFactor × (参考值 ÷ 当前相对浓度)
   - 上轮体积必须全部填写或全部留空，部分填写 → error
-prep：放大系数 = (1 + 损耗%)；
-      样品体积 = 目标蛋白量 ÷ 浓度 × 放大系数；
+prep：scaleFactor = 1 / (1 − 预计损耗率)；
+      样品体积 = 目标蛋白量 ÷ 浓度 × scaleFactor；
       预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
-      Loading Buffer = 终体积 × 放大系数 ÷ Buffer 倍数；
-      补液 = 终体积 × 放大系数 − 样品体积 − Loading Buffer；
-      守恒：样品体积 + Loading Buffer + 补液 = 终体积（含损耗）
+      Loading Buffer = 终体积 × scaleFactor ÷ Buffer 倍数；
+      补液 = 终体积 × scaleFactor − 样品体积 − Loading Buffer；
+      校验：样品体积 × 浓度 × (1 − 损耗率) ≈ 目标蛋白量
 ```
 
 公共规则：
-- 损耗余量同比放大样品量和总体积，保证损耗后剩余蛋白量仍满足目标
+- 预计损耗率（`lossMargin`，0%–50%）使用严格补偿公式：`scaleFactor = 1/(1−lossMargin/100)`
+  保证 `配制量 × (1 − 损耗率) = 目标量`（例如 10% 损耗 → 1/0.9 ≈ 1.111×）
 - 样品名称仅用于显示，不影响任何数值计算（`isSampleNumericallyValid` 用于参考值）
-- 预稀释后：`sampleVolume` = 稀释液移液体积，`originalConsumed` = 原液实际消耗量（用于库存检查）
-- 理论体积 < 0.5 µL 时由 `suggestPreDilution()` 给出预稀释建议
-- 损耗余量（`lossMargin`，校验范围 0%–50%），数值上 1 mg/mL = 1 µg/µL
+- 预稀释后：`sampleVolume` = 稀释液移液体积，`originalConsumed` = 原液实际消耗量
+- 数值上 1 mg/mL = 1 µg/µL
 
 ## 构建与运行命令
 
 没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
 
-- 运行测试：`node tests/test-calculator.js`（应输出 `116 passed, 0 failed`）
+- 运行测试：`node tests/test-calculator.js`（应输出 `90 passed, 0 failed`）
 - 语法检查：`node --check calculator.js && node --check app.js`
 - 本地预览（任选其一）：
   - 直接双击打开 `index.html`；

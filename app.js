@@ -173,12 +173,12 @@ function getFormulaNote() {
     return '<strong>变性后重新配平：</strong>目标浓度 = 所有样本最低浓度；总蛋白量 = 浓度 × 体积；最终体积 = 总蛋白量 ÷ 目标浓度；需加 1× Loading = 最终体积 − 当前体积。最低浓度样本无需加入 Loading。';
   }
   if (state.workflowMode === 'perWell') {
-    return '<strong>上样配平：</strong>样品体积 = 每孔目标蛋白量 ÷ 浓度；1× Loading = 统一上样体积 × (1 + 损耗%) − 样品体积。体积 < 0.5 µL 时建议预稀释。';
+    return '<strong>上样配平：</strong>样品体积 = 每孔目标蛋白量 ÷ 浓度 × 补偿系数；1× Loading = 总体积 − 样品体积。补偿系数 = 1/(1−预计损耗率)，保证损耗后剩余量恰好等于目标。体积 < 0.5 µL 时建议预稀释。';
   }
   if (state.workflowMode === 'rebalance') {
     return '<strong>ImageJ 配平：</strong>修正样本体积 = 统一上样体积 × (参考值 ÷ ImageJ 值)；1× Loading = 统一上样体积 − 修正样本体积。如填写了上轮取样体积则以此为基准计算。';
   }
-  return '<strong>未变性样品配平：</strong>样品体积 = 目标蛋白量 ÷ 浓度；Loading Buffer 体积 = 最终体积 ÷ Buffer 倍数；补液体积 = 最终体积 − 样品体积 − Loading Buffer。三者之和等于最终体积（含损耗余量）。';
+  return '<strong>未变性样品配平：</strong>样品体积 = 目标蛋白量 ÷ 浓度；Loading Buffer 体积 = 最终体积 ÷ Buffer 倍数；补液体积 = 最终体积 − 样品体积 − Loading Buffer。三者之和等于最终体积（预计损耗余量）。';
 }
 
 // ---------- 控件同步 ----------
@@ -228,7 +228,7 @@ function renderSampleRows() {
   var isPrep = mode === 'prep';
   var showConcentration = mode !== 'rebalance';
   var showImage = mode === 'rebalance';
-  var showAvailable = mode !== 'equalize' && !isPrep;
+  var showAvailable = mode !== 'equalize';
   var showIndividualVolume = mode === 'equalize' && state.useIndividualVolume;
   var showPrevVolume = mode === 'rebalance';
 
@@ -318,21 +318,23 @@ function renderResults(result) {
       '<div class="summary-item"><span class="summary-label">配平模式</span>' + summaryValue('变性后重新配平') + '</div>' +
       '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
   } else if (mode === 'perWell') {
-    var marginInfo = state.lossMargin > 0 ? '（含损耗 ' + state.lossMargin + '%）' : '';
+    var marginInfo = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
     elements.summary.innerHTML =
       '<div class="summary-item"><span class="summary-label">目标蛋白量 / 孔</span>' + summaryValue(state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—') + '</div>' +
       '<div class="summary-item"><span class="summary-label">统一上样体积' + marginInfo + '</span>' + summaryValue(formatVolume(summary.totalWithMargin)) + '</div>' +
       '<div class="summary-item"><span class="summary-label">配平模式</span>' + summaryValue('上样配平') + '</div>' +
       '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
   } else if (mode === 'rebalance') {
-    var mInfo = state.lossMargin > 0 ? '（含损耗 ' + state.lossMargin + '%）' : '';
+    var mInfo = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
+    var refLabel = summary.useNormalized ? '参考相对浓度（最低 ImageJ/µL）' : '参考 ImageJ（最低值）';
+    var refValue = summary.useNormalized ? formatNumber(latestReference, 4) : formatIntensity(latestReference);
     elements.summary.innerHTML =
-      '<div class="summary-item"><span class="summary-label">参考 ImageJ（最低值）</span>' + summaryValue(formatIntensity(latestReference)) + '</div>' +
+      '<div class="summary-item"><span class="summary-label">' + refLabel + '</span>' + summaryValue(refValue) + '</div>' +
       '<div class="summary-item"><span class="summary-label">统一上样体积' + mInfo + '</span>' + summaryValue(formatVolume(summary.totalWithMargin)) + '</div>' +
       '<div class="summary-item"><span class="summary-label">配平模式</span>' + summaryValue('ImageJ 配平') + '</div>' +
       '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
   } else {
-    var mInfo2 = state.lossMargin > 0 ? '（含损耗 ' + state.lossMargin + '%）' : '';
+    var mInfo2 = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
     elements.summary.innerHTML =
       '<div class="summary-item"><span class="summary-label">目标蛋白量</span>' + summaryValue(state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—') + '</div>' +
       '<div class="summary-item"><span class="summary-label">Buffer 倍数</span>' + summaryValue((state.loadingBufferFactor || 5) + '×') + '</div>' +
@@ -343,7 +345,11 @@ function renderResults(result) {
   // 提示条
   var alerts = [];
   if (mode === 'rebalance' && Number.isFinite(latestReference)) {
-    alerts.push('<div class="alert alert-success">以最低 ImageJ 值 ' + formatIntensity(latestReference) + ' 为参考，低者占满体积。</div>');
+    if (summary.useNormalized) {
+      alerts.push('<div class="alert alert-success">根据 ImageJ 值和上轮取样体积计算单位体积相对浓度，以最低相对浓度样品为参考进行配平。</div>');
+    } else {
+      alerts.push('<div class="alert alert-success">以最低 ImageJ 值 ' + formatIntensity(latestReference) + ' 为参考，低者占满体积。</div>');
+    }
   } else if (mode === 'equalize' && Number.isFinite(latestReference)) {
     alerts.push('<div class="alert alert-success">目标浓度（最低样本浓度）为 ' + formatConcentration(latestReference) + '。最低浓度样本无需加入 1× Loading。</div>');
   }
