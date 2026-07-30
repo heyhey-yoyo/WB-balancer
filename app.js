@@ -349,6 +349,9 @@ function renderResults(result) {
   if (summary.marginError) {
     alerts.push('<div class="alert alert-danger">' + escapeHtml(summary.marginError) + '</div>');
   }
+  if (summary.partialPrevError) {
+    alerts.push('<div class="alert alert-danger">' + escapeHtml(summary.partialPrevError) + '</div>');
+  }
   if (warnCount > 0) alerts.push('<div class="alert alert-warning">有 ' + warnCount + ' 个样本的体积在可操作范围边缘，请检查。</div>');
   if (errCount > 0) alerts.push('<div class="alert alert-danger">有 ' + errCount + ' 个样本无法按当前参数计算，请修正红色状态项。</div>');
   elements.alerts.innerHTML = alerts.join('');

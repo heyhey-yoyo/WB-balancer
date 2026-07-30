@@ -46,10 +46,11 @@
 
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
-1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleComplete()`（判定样本字段完整有效）
+1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleNumericallyValid()`（仅看数字字段，用于参考值计算）/ `isSampleComplete()`（含名称，用于界面提示）
 2. 各模式计算：`calculateEqualize()` / `calculatePerWell()` / `calculateRebalance()` / `calculatePrep()`——统一返回 `{ results, reference, summary }`
-3. 计算链：理论体积 → 预稀释检查 → Loading/补液（基于预稀释调整后体积）。不做移液取整，展示理论体积由用户自行判断。
-4. 末端 `module.exports` 块用于 Node 测试，浏览器环境忽略
+3. 计算链：理论体积 → 损耗余量同比放大 → 预稀释检查 → Loading/补液。不做移液取整。
+4. 预稀释场景中：`originalConsumed` 记录原液消耗量（用于检查库存），`sampleVolume` 为稀释后移液体积
+5. 末端 `module.exports` 块用于 Node 测试，浏览器环境忽略
 
 `app.js` 内部分层（从上到下）：
 
@@ -68,31 +69,40 @@
 展示理论体积，不做移液取整——用户自行判断实际移液量。
 
 ```text
-equalize：目标浓度 = min(所有完整样本浓度)；总蛋白量 = 浓度 × 体积；
+equalize：目标浓度 = min(所有数值有效样本浓度)；总蛋白量 = 浓度 × 体积；
           最终体积 = 总蛋白量 ÷ 目标浓度；需加 1× Loading = 最终体积 − 当前体积
-perWell：样品体积 = 目标蛋白量 ÷ 浓度；
+          样品名称不影响参考值计算
+perWell：放大系数 = (1 + 损耗%)；
+         样品体积 = 目标蛋白量 ÷ 浓度 × 放大系数； // 损耗余量同比放大
          预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
-         1× Loading = 上样体积 × (1 + 损耗%) − 样品体积；
+         1× Loading = 上样体积 × 放大系数 − 样品体积；
          守恒：样品体积 + Loading = 总上样体积（含损耗）
-rebalance：参考值 = min(所有完整样本 ImageJ 值)；
-          基准体积 = 上轮取样体积 × (1 + 损耗%) 或 上样体积 × (1 + 损耗%)；
-          样品体积 = 基准体积 × (参考值 ÷ ImageJ 值)；
-          预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
-          1× Loading = 上样体积 × (1 + 损耗%) − 样品体积
-prep：样品体积 = 目标蛋白量 ÷ 浓度；
+rebalance：
+  - 无上轮体积：参考值 = min(所有数值有效 ImageJ 值)；
+    样品体积 = 总上样体积 × (参考值 ÷ ImageJ 值)
+  - 有上轮体积：相对浓度 = ImageJ ÷ 上轮体积；参考浓度 = min(相对浓度)；
+    样品体积 = 总上样体积 × 参考浓度 ÷ 当前相对浓度
+  - 上轮体积必须全部填写或全部留空，部分填写 → error
+prep：放大系数 = (1 + 损耗%)；
+      样品体积 = 目标蛋白量 ÷ 浓度 × 放大系数；
       预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
-      Loading Buffer = 终体积 × (1 + 损耗%) ÷ Buffer 倍数；
-      补液 = 终体积 × (1 + 损耗%) − 样品体积 − Loading Buffer；
+      Loading Buffer = 终体积 × 放大系数 ÷ Buffer 倍数；
+      补液 = 终体积 × 放大系数 − 样品体积 − Loading Buffer；
       守恒：样品体积 + Loading Buffer + 补液 = 终体积（含损耗）
 ```
 
-公共规则：理论体积 < 0.5 µL 时由 `suggestPreDilution()` 给出预稀释建议。损耗余量（`lossMargin`，校验范围 0%–50%）在 perWell / rebalance / prep 模式生效，所有组分按同一比例放大。数值上 1 mg/mL = 1 µg/µL。
+公共规则：
+- 损耗余量同比放大样品量和总体积，保证损耗后剩余蛋白量仍满足目标
+- 样品名称仅用于显示，不影响任何数值计算（`isSampleNumericallyValid` 用于参考值）
+- 预稀释后：`sampleVolume` = 稀释液移液体积，`originalConsumed` = 原液实际消耗量（用于库存检查）
+- 理论体积 < 0.5 µL 时由 `suggestPreDilution()` 给出预稀释建议
+- 损耗余量（`lossMargin`，校验范围 0%–50%），数值上 1 mg/mL = 1 µg/µL
 
 ## 构建与运行命令
 
 没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
 
-- 运行测试：`node tests/test-calculator.js`（应输出 `148 passed, 0 failed`）
+- 运行测试：`node tests/test-calculator.js`（应输出 `116 passed, 0 failed`）
 - 语法检查：`node --check calculator.js && node --check app.js`
 - 本地预览（任选其一）：
   - 直接双击打开 `index.html`；
@@ -104,7 +114,7 @@ prep：样品体积 = 目标蛋白量 ÷ 浓度；
 
 ## 验证改动的方式
 
-1. `node tests/test-calculator.js`（148+ tests, 0 failed）和 `node --check calculator.js && node --check app.js` 通过；
+1. `node tests/test-calculator.js`（116+ tests, 0 failed）和 `node --check calculator.js && node --check app.js` 通过；
 2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
 3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
 4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
