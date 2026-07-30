@@ -400,5 +400,60 @@ r = calc.calculateRebalance([
 assertNotNull(r.summary.partialPrevError, 'partial prevVol → error');
 
 // ============================================================
+// lossScaleFactor 字符串输入一致性
+// ============================================================
+console.log('\n--- lossScaleFactor String Input ---');
+assertEqual(calc.lossScaleFactor('10'), calc.lossScaleFactor(10), '"10" === 10');
+assertEqual(calc.lossScaleFactor('0'), 1, '"0" → 1');
+assertEqual(calc.lossScaleFactor(''), 1, 'empty → 1');
+assertEqual(calc.lossScaleFactor('abc'), 1, '"abc" → 1');
+assertEqual(calc.lossScaleFactor(null), 1, 'null → 1');
+
+// ============================================================
+// 无效损耗率 → scaleFactor=null，体积返回 null
+// ============================================================
+console.log('\n--- Invalid Loss Margin → null Volumes ---');
+
+// perWell: 51% → invalid
+r = calc.calculatePerWell([
+  { name: 'A', concentration: '2' }
+], { targetMass: 20, finalVolume: 20, lossMargin: 51 });
+assertNull(r.summary.scaleFactor, '51% → scaleFactor null');
+assertNull(r.summary.totalWithMargin, '51% → totalWithMargin null');
+assertNull(r.results[0].sampleVolume, '51% → sampleVolume null');
+assertNull(r.results[0].loadingVolume, '51% → loadingVolume null');
+assert(r.results[0].severity === 'error', '51% → error');
+
+// perWell: negative → invalid
+r = calc.calculatePerWell([
+  { name: 'A', concentration: '2' }
+], { targetMass: 20, finalVolume: 20, lossMargin: -5 });
+assertNull(r.summary.scaleFactor, '-5% → scaleFactor null');
+assertNull(r.results[0].sampleVolume, '-5% → sampleVolume null');
+
+// rebalance: invalid → null
+r = calc.calculateRebalance([
+  { name: 'A', imageIntensity: '1.0' }
+], { finalVolume: 20, lossMargin: 51 });
+assertNull(r.summary.scaleFactor, 'rebalance 51% → scaleFactor null');
+assertNull(r.results[0].sampleVolume, 'rebalance 51% → sampleVolume null');
+
+// prep: invalid → null
+r = calc.calculatePrep([
+  { name: 'A', concentration: '2' }
+], { targetMass: 20, finalVolume: 20, loadingBufferFactor: 5, lossMargin: 51 });
+assertNull(r.summary.scaleFactor, 'prep 51% → scaleFactor null');
+assertNull(r.results[0].sampleVolume, 'prep 51% → sampleVolume null');
+assertNull(r.results[0].loadingBufferVol, 'prep 51% → loadingBufferVol null');
+assertNull(r.results[0].makeupVol, 'prep 51% → makeupVol null');
+
+// 0% 仍然是有效的
+r = calc.calculatePerWell([
+  { name: 'A', concentration: '2' }
+], { targetMass: 20, finalVolume: 20, lossMargin: 0 });
+assert(r.summary.scaleFactor === 1, '0% → scaleFactor = 1');
+assertNotNull(r.results[0].sampleVolume, '0% → sampleVolume not null');
+
+// ============================================================
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 if (failed > 0) process.exit(1);

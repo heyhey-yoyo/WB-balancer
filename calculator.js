@@ -42,8 +42,9 @@ function validateLossMargin(value) {
  * 例如 10% 损耗 → 1/0.9 ≈ 1.1111，保证损耗后剩余量恰好等于目标。
  */
 function lossScaleFactor(lossPercent) {
-  if (!Number.isFinite(lossPercent) || lossPercent <= 0) return 1;
-  return 1 / (1 - lossPercent / 100);
+  var num = toFiniteNumber(lossPercent);
+  if (!Number.isFinite(num) || num <= 0) return 1;
+  return 1 / (1 - num / 100);
 }
 
 function isSampleNumericallyValid(sample, mode, useIndividualVolume) {
@@ -143,11 +144,10 @@ function calculatePerWell(samples, settings) {
   var lossMargin = settings.lossMargin;
   var minVol = 0.5;
 
-  var scaleFactor = lossScaleFactor(lossMargin);
-  var totalWithMargin = finalVolume * scaleFactor;
-
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
+  var scaleFactor = marginCheck.valid ? lossScaleFactor(marginCheck.value) : null;
+  var totalWithMargin = Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'perWell', false); });
 
@@ -155,13 +155,12 @@ function calculatePerWell(samples, settings) {
     var conc = toFiniteNumber(sample.concentration);
     var availableVol = toFiniteNumber(sample.availableVolume);
 
-    // 理论取样体积 × 损耗补偿系数
     var theoreticalVol = conc > 0 && targetMass > 0 ? targetMass / conc : null;
-    var sampleVolBase = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
+    var sampleVolBase = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
     var dilution = suggestPreDilution(sampleVolBase, minVol);
     var sampleVol = dilution ? dilution.adjustedVolume : sampleVolBase;
-    var originalConsumed = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
-    var loading = Number.isFinite(sampleVol) && totalWithMargin > 0 ? totalWithMargin - sampleVol : null;
+    var originalConsumed = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
+    var loading = Number.isFinite(sampleVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - sampleVol : null;
 
     var msgs = [];
     var sev = 'ok';
@@ -221,11 +220,10 @@ function calculateRebalance(samples, settings) {
   var lossMargin = settings.lossMargin;
   var minVol = 0.5;
 
-  var scaleFactor = lossScaleFactor(lossMargin);
-  var totalWithMargin = finalVolume * scaleFactor;
-
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
+  var scaleFactor = marginCheck.valid ? lossScaleFactor(marginCheck.value) : null;
+  var totalWithMargin = Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'rebalance', false); });
 
@@ -262,7 +260,7 @@ function calculateRebalance(samples, settings) {
     var hasPrev = Number.isFinite(prevVol) && prevVol > 0;
 
     var sampleVol = null;
-    if (reference !== null && Number.isFinite(imageVal) && imageVal > 0) {
+    if (Number.isFinite(totalWithMargin) && reference !== null && Number.isFinite(imageVal) && imageVal > 0) {
       if (relativeConcs) {
         var rc = hasPrev ? imageVal / prevVol : null;
         if (Number.isFinite(rc) && rc > 0) {
@@ -276,7 +274,7 @@ function calculateRebalance(samples, settings) {
     var dilution = suggestPreDilution(sampleVol, minVol);
     var pipettingVol = dilution ? dilution.adjustedVolume : sampleVol;
     var originalConsumed = sampleVol;
-    var loading = Number.isFinite(pipettingVol) && totalWithMargin > 0 ? totalWithMargin - pipettingVol : null;
+    var loading = Number.isFinite(pipettingVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - pipettingVol : null;
 
     var msgs = [];
     var sev = 'ok';
@@ -336,11 +334,10 @@ function calculatePrep(samples, settings) {
   var lossMargin = settings.lossMargin;
   var minVol = 0.5;
 
-  var scaleFactor = lossScaleFactor(lossMargin);
-  var totalWithMargin = finalVolume * scaleFactor;
-
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
+  var scaleFactor = marginCheck.valid ? lossScaleFactor(marginCheck.value) : null;
+  var totalWithMargin = Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'prep', false); });
 
@@ -349,13 +346,13 @@ function calculatePrep(samples, settings) {
     var availableVol = toFiniteNumber(sample.availableVolume);
 
     var theoreticalVol = conc > 0 && targetMass > 0 ? targetMass / conc : null;
-    var sampleVolBase = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
+    var sampleVolBase = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
     var dilution = suggestPreDilution(sampleVolBase, minVol);
     var sampleVol = dilution ? dilution.adjustedVolume : sampleVolBase;
-    var originalConsumed = Number.isFinite(theoreticalVol) ? theoreticalVol * scaleFactor : null;
-    var loadingBufferVol = totalWithMargin > 0 && bufferFactor > 0 ? totalWithMargin / bufferFactor : null;
+    var originalConsumed = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
+    var loadingBufferVol = Number.isFinite(totalWithMargin) && totalWithMargin > 0 && bufferFactor > 0 ? totalWithMargin / bufferFactor : null;
     var makeupVol = null;
-    if (Number.isFinite(sampleVol) && Number.isFinite(loadingBufferVol)) {
+    if (Number.isFinite(sampleVol) && Number.isFinite(loadingBufferVol) && Number.isFinite(totalWithMargin)) {
       makeupVol = totalWithMargin - sampleVol - loadingBufferVol;
       if (makeupVol < 0 && makeupVol > -1e-9) makeupVol = 0;
     }

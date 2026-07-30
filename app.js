@@ -169,16 +169,20 @@ function getModeDescription() {
 }
 
 function getFormulaNote() {
+  var lossNote = state.lossMargin > 0 ? '补偿系数 = 1/(1−' + state.lossMargin + '%) ≈ ' + (1 / (1 - state.lossMargin / 100)).toFixed(3) + '；' : '';
   if (state.workflowMode === 'equalize') {
     return '<strong>变性后重新配平：</strong>目标浓度 = 所有样本最低浓度；总蛋白量 = 浓度 × 体积；最终体积 = 总蛋白量 ÷ 目标浓度；需加 1× Loading = 最终体积 − 当前体积。最低浓度样本无需加入 Loading。';
   }
   if (state.workflowMode === 'perWell') {
-    return '<strong>上样配平：</strong>样品体积 = 每孔目标蛋白量 ÷ 浓度 × 补偿系数；1× Loading = 总体积 − 样品体积。补偿系数 = 1/(1−预计损耗率)，保证损耗后剩余量恰好等于目标。体积 < 0.5 µL 时建议预稀释。';
+    return '<strong>上样配平：</strong>' + lossNote + '样品体积 = 每孔目标蛋白量 ÷ 浓度 × 补偿系数；1× Loading = 统一上样体积 × 补偿系数 − 样品体积。配制量 × (1−预计损耗率) = 目标量。体积 < 0.5 µL 时建议预稀释。';
   }
   if (state.workflowMode === 'rebalance') {
-    return '<strong>ImageJ 配平：</strong>修正样本体积 = 统一上样体积 × (参考值 ÷ ImageJ 值)；1× Loading = 统一上样体积 − 修正样本体积。如填写了上轮取样体积则以此为基准计算。';
+    var rebalanceNote = lossNote;
+    rebalanceNote += '未填上轮体积：样品体积 = 补偿后总体积 × 最低ImageJ ÷ 当前ImageJ。';
+    rebalanceNote += '填写上轮体积：相对浓度 = ImageJ ÷ 上轮体积，以最低相对浓度为参考配平。';
+    return '<strong>ImageJ 配平：</strong>' + rebalanceNote;
   }
-  return '<strong>未变性样品配平：</strong>样品体积 = 目标蛋白量 ÷ 浓度；Loading Buffer 体积 = 最终体积 ÷ Buffer 倍数；补液体积 = 最终体积 − 样品体积 − Loading Buffer。三者之和等于最终体积（预计损耗余量）。';
+  return '<strong>未变性样品配平：</strong>' + lossNote + '样品体积 = 目标蛋白量 ÷ 浓度 × 补偿系数；Loading Buffer = 补偿后总体积 ÷ Buffer 倍数；补液 = 补偿后总体积 − 样品 − Loading Buffer。配制量 × (1−预计损耗率) = 目标量。';
 }
 
 // ---------- 控件同步 ----------
