@@ -118,22 +118,23 @@ function loadModeSamples() {
 function loadState() {
   try {
     var saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (!saved) return;
-    var def = getDefaultState();
-    state = Object.assign(def, saved);
-    // 向后兼容：旧版本可能没有 samplesByMode
-    if (!state.samplesByMode) {
-      state.samplesByMode = {
-        equalize: blankSamples(),
-        perWell: blankSamples(),
-        rebalance: blankSamples(),
-        prep: blankSamples(),
-      };
-      if (Array.isArray(saved.samples)) {
-        state.samplesByMode[saved.workflowMode || 'equalize'] = saved.samples;
+    if (saved) {
+      var def = getDefaultState();
+      state = Object.assign(def, saved);
+      // 向后兼容：旧版本可能没有 samplesByMode
+      if (!state.samplesByMode) {
+        state.samplesByMode = {
+          equalize: blankSamples(),
+          perWell: blankSamples(),
+          rebalance: blankSamples(),
+          prep: blankSamples(),
+        };
+        if (Array.isArray(saved.samples)) {
+          state.samplesByMode[saved.workflowMode || 'equalize'] = saved.samples;
+        }
       }
     }
-    // 忽略持久化中的 samples 字段（现在由 samplesByMode 管理）
+    // 无论有无保存数据，都必须初始化 state.samples 引用
     loadModeSamples();
   } catch (error) {
     console.warn('无法读取本地保存的数据：', error);
