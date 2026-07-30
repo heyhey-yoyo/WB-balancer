@@ -39,12 +39,13 @@ function validateLossMargin(value) {
 /**
  * 根据预计损耗率计算放大系数。
  * scaleFactor = 1 / (1 − lossPercent / 100)
- * 例如 10% 损耗 → 1/0.9 ≈ 1.1111，保证损耗后剩余量恰好等于目标。
+ * 0% → 1；超出 0%–50% 或非数字 → null。
  */
 function lossScaleFactor(lossPercent) {
-  var num = toFiniteNumber(lossPercent);
-  if (!Number.isFinite(num) || num <= 0) return 1;
-  return 1 / (1 - num / 100);
+  var check = validateLossMargin(lossPercent);
+  if (!check.valid) return null;
+  if (check.value === 0) return 1;
+  return 1 / (1 - check.value / 100);
 }
 
 function isSampleNumericallyValid(sample, mode, useIndividualVolume) {

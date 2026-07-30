@@ -400,14 +400,21 @@ r = calc.calculateRebalance([
 assertNotNull(r.summary.partialPrevError, 'partial prevVol → error');
 
 // ============================================================
-// lossScaleFactor 字符串输入一致性
+// lossScaleFactor 字符串输入一致性 + 边界值校验
 // ============================================================
-console.log('\n--- lossScaleFactor String Input ---');
+console.log('\n--- lossScaleFactor String Input + Boundaries ---');
+assertEqual(calc.lossScaleFactor(0), 1, '0% → 1');
 assertEqual(calc.lossScaleFactor('10'), calc.lossScaleFactor(10), '"10" === 10');
-assertEqual(calc.lossScaleFactor('0'), 1, '"0" → 1');
-assertEqual(calc.lossScaleFactor(''), 1, 'empty → 1');
-assertEqual(calc.lossScaleFactor('abc'), 1, '"abc" → 1');
-assertEqual(calc.lossScaleFactor(null), 1, 'null → 1');
+assertEqual(calc.lossScaleFactor(10), 1 / 0.9, '10% → 1/0.9');
+assertEqual(calc.lossScaleFactor(50), 2, '50% → 2');
+
+// 超出范围 → null
+assertNull(calc.lossScaleFactor(-1), '-1% → null');
+assertNull(calc.lossScaleFactor(51), '51% → null');
+assertNull(calc.lossScaleFactor(100), '100% → null');
+assertNull(calc.lossScaleFactor('abc'), '"abc" → null');
+assertNull(calc.lossScaleFactor(''), 'empty → null');
+assertNull(calc.lossScaleFactor(null), 'null → null');
 
 // ============================================================
 // 无效损耗率 → scaleFactor=null，体积返回 null
