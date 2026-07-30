@@ -121,6 +121,13 @@ td input { min-width: 110px; min-height: 32px; font-size: .875rem; }
 .imagej-tips li + li { margin-top: 2px; }
 .paste-area { width: 100%; min-height: 72px; margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); padding: 8px 12px; font-family: inherit; font-size: .8rem; resize: vertical; outline: none; }
 .paste-area:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(13,148,136,.15); }
+/* Replace inline styles (CSP compliance) */
+.field-mb { margin-bottom: 14px; }
+.field-hint { font-weight: 400; color: var(--muted); }
+.rebalance-notice { margin: 8px 0 0; color: var(--muted); font-size: .84rem; }
+.button-row-mt { margin-top: 8px; }
+.button-sm { font-size: .82rem; }
+
 .hidden { display: none !important; }
 .site-footer { padding: 24px 0 calc(24px + env(safe-area-inset-bottom, 0px)); color: #94a3b8; text-align: center; font-size: .75rem; }
 

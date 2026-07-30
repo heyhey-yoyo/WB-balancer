@@ -31,7 +31,7 @@
         <button id="resetBtn" class="button button-ghost" type="button">恢复默认</button>
       </div>
 
-      <label class="field" style="margin-bottom:14px;">
+      <label class="field field-mb">
         <span>配平模式</span>
         <select id="workflowSelect">
           <option value="equalize" selected>变性后重新配平</option>
@@ -82,7 +82,7 @@
         </label>
 
         <label id="lossMarginField" class="field hidden">
-          <span>损耗余量 <small style="font-weight:400;color:var(--muted);">（总体积按此比例放大）</small></span>
+          <span>损耗余量 <small class="field-hint">（总体积按此比例放大）</small></span>
           <div class="input-with-unit">
             <input id="lossMargin" type="number" min="0" step="1" max="50" value="0" inputmode="decimal" />
             <span>%</span>
@@ -90,7 +90,7 @@
         </label>
       </div>
 
-      <p id="rebalanceNotice" class="hidden" style="margin:8px 0 0;color:var(--muted);font-size:.84rem;">当前计算适用于各样本上一轮取样体积相同的情况。如体积不同，请填写表格中的"上轮取样体积"列。</p>
+      <p id="rebalanceNotice" class="hidden rebalance-notice">当前计算适用于各样本上一轮取样体积相同的情况。如体积不同，请填写表格中的"上轮取样体积"列。</p>
 
       <div id="formulaNote" class="formula-note"></div>
       <div id="imagejTips" class="imagej-tips hidden">
@@ -137,9 +137,9 @@
       </div>
       <p class="help-text">浓度单位可使用 µg/µL 或 mg/mL（数值相同）。</p>
 
-      <div class="button-row" style="margin-top:8px;">
-        <button id="clearDataBtn" class="button button-ghost" type="button" style="font-size:.82rem;">清空数据</button>
-        <button id="exampleDataBtn" class="button button-ghost" type="button" style="font-size:.82rem;">示例数据</button>
+      <div class="button-row button-row-mt">
+        <button id="clearDataBtn" class="button button-ghost button-sm" type="button">清空数据</button>
+        <button id="exampleDataBtn" class="button button-ghost button-sm" type="button">示例数据</button>
       </div>
     </section>
 
@@ -195,6 +195,7 @@
     </tr>
   </template>
 
+  <script src="./calculator.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>

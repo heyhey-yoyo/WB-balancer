@@ -74,8 +74,10 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 .
 ├── index.html       # 页面结构
 ├── styles.css       # 页面样式
-├── app.js           # 配平与本地保存逻辑
-├── tests/           # 计算函数测试（node tests/test-calculator.js）
+├── calculator.js    # 纯计算逻辑（所有配平公式，可独立测试）
+├── app.js           # UI 控制器（DOM 操作、状态管理、localStorage）
+├── tests/
+│   └── test-calculator.js  # 计算函数测试，直接导入 calculator.js
 ├── wrangler.toml    # 项目配置
 ├── _headers         # 安全响应头
 ├── .gitignore
