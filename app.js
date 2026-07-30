@@ -378,11 +378,16 @@ function renderResults(result) {
   if (errCount > 0) alerts.push('<div class="alert alert-danger">有 ' + errCount + ' 个样本无法按当前参数计算，请修正红色状态项。</div>');
   elements.alerts.innerHTML = alerts.join('');
 
+  // 复制按钮状态（必须在空结果 return 之前设置）
   if (latestResults.length === 0) {
+    elements.copyBtn.disabled = true;
+    elements.copyBtn.textContent = '暂无结果可复制';
     elements.resultsHead.innerHTML = '';
     elements.resultsBody.innerHTML = '<tr><td colspan="10" class="empty-cell">请先添加样本。</td></tr>';
     return;
   }
+  elements.copyBtn.disabled = errCount > 0;
+  elements.copyBtn.textContent = errCount > 0 ? '存在错误，无法复制' : '复制结果';
 
   // 表头
   var headers;
@@ -451,10 +456,6 @@ function renderResults(result) {
       '<td>' + formatVolume(r.finalVolume) + '</td>' +
       '<td>' + st + '</td></tr>';
   }).join('');
-
-  // 任何错误都禁用复制
-  elements.copyBtn.disabled = errCount > 0;
-  elements.copyBtn.textContent = errCount > 0 ? '存在错误，无法复制' : '复制结果';
 }
 
 // ---------- 样本操作 ----------

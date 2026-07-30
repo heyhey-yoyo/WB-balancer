@@ -174,7 +174,7 @@ function calculatePerWell(samples, settings) {
     if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('统一上样体积无效');
     if (marginError) e(marginError);
     if (Number.isFinite(loading) && loading < -1e-9) e('样品体积超过总体积，请降低目标蛋白量或增大上样体积');
-    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) w('可用体积不足');
+    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
     if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
       w('取样体积 ' + sampleVolBase.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
     }
@@ -289,7 +289,7 @@ function calculateRebalance(samples, settings) {
     if (partialPrevError) e(partialPrevError);
     if (reference === null && (Number.isFinite(imageVal) && imageVal > 0)) e('至少需要一个有效样本');
     if (Number.isFinite(loading) && loading < -1e-9) e('计算错误');
-    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) w('可用体积不足');
+    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
     if (Number.isFinite(sampleVol) && sampleVol > 0 && sampleVol < minVol && dilution) {
       w('取样体积 ' + sampleVol.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
     }
@@ -371,7 +371,7 @@ function calculatePrep(samples, settings) {
     if (!Number.isFinite(bufferFactor) || bufferFactor <= 0) e('Loading Buffer 倍数无效');
     if (marginError) e(marginError);
     if (Number.isFinite(makeupVol) && makeupVol < -1e-9) e('补液体积为负，当前参数不可配制，请调整目标蛋白量或最终体积');
-    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) w('可用体积不足');
+    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
     if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
       w('样品体积 ' + sampleVolBase.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
     }

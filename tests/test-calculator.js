@@ -181,8 +181,8 @@ assertNotNull(r.results[0].dilution, 'dilution needed');
 r = calc.calculatePerWell([
   { name: 'A', concentration: '50', availableVolume: '0.3' }
 ], { targetMass: 20, finalVolume: 20, lossMargin: 0 });
-// originalConsumed = 0.4, available = 0.3 → warning
-assert(r.results[0].severity === 'warning', 'original 0.4 > available 0.3 → warning');
+// originalConsumed = 0.4, available = 0.3 → error
+assert(r.results[0].severity === 'error', 'original 0.4 > available 0.3 → error');
 
 // 无效输入
 r = calc.calculatePerWell([{ name: 'A', concentration: '-1' }], { targetMass: 20, finalVolume: 20, lossMargin: 0 });
