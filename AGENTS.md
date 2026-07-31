@@ -34,10 +34,11 @@
 .
 ├── index.html       # 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明
 ├── styles.css       # 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色
-├── calculator.js    # 所有纯计算逻辑（约 380 行），见下
-├── app.js           # UI 控制器（约 620 行），见下
+├── calculator.js    # 所有纯计算逻辑（约 448 行），见下
+├── app.js           # UI 控制器（约 683 行），见下
 ├── tests/
-│   └── test-calculator.js  # 导入 calculator.js，186+ 测试
+│   ├── test-calculator.js  # 计算函数测试（129 项），导入 calculator.js
+│   └── test-ui-state.js    # 状态恢复与无障碍标记测试（14 项），用 vm 隔离执行 app.js
 ├── wrangler.toml    # Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "."
 ├── _headers         # Cloudflare Pages 安全响应头（含严格的 CSP，style-src 'self' 不允许内联样式）
 ├── .gitignore       # 忽略 .wrangler/、.dev.vars、node_modules/、系统文件
@@ -101,8 +102,9 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
 
-- 运行测试：`node tests/test-calculator.js`（应输出 `120 passed, 0 failed`）
-- 语法检查：`node --check calculator.js && node --check app.js`
+- 运行计算测试：`node tests/test-calculator.js`（应输出 `129 passed, 0 failed`）
+- 运行状态测试：`node tests/test-ui-state.js`（应输出 `14 passed, 0 failed`）
+- 语法检查：`node --check calculator.js && node --check app.js && node --check tests/test-calculator.js && node --check tests/test-ui-state.js`
 - 本地预览（任选其一）：
   - 直接双击打开 `index.html`；
   - `python -m http.server 8000` 后访问 `http://localhost:8000`；
@@ -113,7 +115,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 ## 验证改动的方式
 
-1. `node tests/test-calculator.js`（116+ tests, 0 failed）和 `node --check calculator.js && node --check app.js` 通过；
+1. `node tests/test-calculator.js`（129 passed, 0 failed）、`node tests/test-ui-state.js`（14 passed, 0 failed）和全部 JS 文件 `node --check` 通过；
 2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
 3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
 4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
