@@ -49,24 +49,18 @@ function lossScaleFactor(lossPercent) {
 }
 
 function isSampleNumericallyValid(sample, mode, useIndividualVolume) {
-  if (mode === 'equalize') {
-    var conc = toFiniteNumber(sample.concentration);
-    if (!(Number.isFinite(conc) && conc > 0)) return false;
-    if (useIndividualVolume) {
-      var iv = toFiniteNumber(sample.individualVolume);
-      if (!(Number.isFinite(iv) && iv > 0)) return false;
-    }
-    return true;
-  }
-  if (mode === 'perWell' || mode === 'prep') {
-    var c = toFiniteNumber(sample.concentration);
-    return Number.isFinite(c) && c > 0;
-  }
   if (mode === 'rebalance') {
-    var iv2 = toFiniteNumber(sample.imageIntensity);
-    return Number.isFinite(iv2) && iv2 > 0;
+    var intensity = toFiniteNumber(sample.imageIntensity);
+    return Number.isFinite(intensity) && intensity > 0;
   }
-  return false;
+  // equalize / perWell / prep：浓度有效即可；equalize 开启逐样本体积时还需体积有效
+  var conc = toFiniteNumber(sample.concentration);
+  if (!(Number.isFinite(conc) && conc > 0)) return false;
+  if (mode === 'equalize' && useIndividualVolume) {
+    var iv = toFiniteNumber(sample.individualVolume);
+    if (!(Number.isFinite(iv) && iv > 0)) return false;
+  }
+  return true;
 }
 
 function isSampleComplete(sample, mode, useIndividualVolume) {
@@ -83,6 +77,75 @@ function isFiniteNonNegative(value) {
 }
 
 var DERIVED_RANGE_ERROR = '计算结果超出可处理范围，请减小输入数值';
+
+// ---------- 各模式共用辅助 ----------
+
+var MIN_RELIABLE_VOLUME = 0.5;
+
+/**
+ * 收集样本校验消息，按最严重级别判定结果状态。
+ * finish() 在无消息时补默认文案并返回最终 severity（ok / warning / error）。
+ */
+function createMessages(defaultText) {
+  var messages = [];
+  var severity = 'ok';
+  return {
+    messages: messages,
+    error: function (message) { messages.push(message); severity = 'error'; },
+    warn: function (message) { messages.push(message); if (severity !== 'error') severity = 'warning'; },
+    finish: function () { if (messages.length === 0) messages.push(defaultText); return severity; },
+  };
+}
+
+/** 两个有限数相乘，任一无效 → null。用于"理论体积 × 放大系数"与"原液消耗量"。 */
+function multiplyFinite(a, b) {
+  return Number.isFinite(a) && Number.isFinite(b) ? a * b : null;
+}
+
+/** 最终体积 × 放大系数；放大系数无效或体积非正 → null。 */
+function scaledTotal(finalVolume, scaleFactor) {
+  return Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
+}
+
+/** 体积低于最小可靠体积时建议预稀释，返回 { dilution, volume }；volume 为最终移液体积。 */
+function applyPreDilution(volume) {
+  var dilution = suggestPreDilution(volume, MIN_RELIABLE_VOLUME);
+  return { dilution: dilution, volume: dilution ? dilution.adjustedVolume : volume };
+}
+
+function warnMissingName(sample, warn) {
+  if (!sample.name || !sample.name.trim()) warn('未填写样本名');
+}
+
+/** Loading 体积 > 0 但小于最小可靠体积时警告；noun 决定文案前缀。 */
+function warnSmallLoading(loading, warn, noun) {
+  if (Number.isFinite(loading) && loading > 0 && loading < MIN_RELIABLE_VOLUME) warn(noun + ' < 0.5 µL');
+}
+
+/** 原液消耗量超过可用体积时报错（预稀释场景下 originalConsumed 为原液消耗）。 */
+function errorIfNotEnoughAvailable(availableVol, originalConsumed, error) {
+  if (Number.isFinite(availableVol) && availableVol >= 0 &&
+      Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) {
+    error('可用体积不足');
+  }
+}
+
+/** 体积低于最小可靠体积时的预稀释建议；noun 决定文案主语（取样体积/样品体积）。 */
+function warnPreDilution(volume, dilution, warn, noun) {
+  if (!Number.isFinite(volume) || volume <= 0 || volume >= MIN_RELIABLE_VOLUME) return;
+  if (dilution) {
+    warn(noun + ' ' + volume.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
+  } else {
+    warn(noun + ' < 0.5 µL');
+  }
+}
+
+function allPositive(values) {
+  for (var i = 0; i < values.length; i++) {
+    if (!Number.isFinite(values[i]) || values[i] <= 0) return false;
+  }
+  return true;
+}
 
 // ---------- 各模式计算 ----------
 
@@ -103,33 +166,29 @@ function calculateEqualize(samples, currentVolume, useIndividualVolume) {
     var finalVol = totalProtein !== null && targetConc !== null && targetConc > 0 ? totalProtein / targetConc : null;
     var loading = finalVol !== null && vol >= 0 ? Math.max(0, finalVol - vol) : null;
 
-    var msgs = [];
-    var sev = 'ok';
-    var e = function (m) { msgs.push(m); sev = 'error'; };
-    var w = function (m) { msgs.push(m); if (sev !== 'error') sev = 'warning'; };
+    var c = createMessages('可以配平');
 
-    if (!sample.name || !sample.name.trim()) w('未填写样本名');
-    if (!Number.isFinite(conc) || conc <= 0) e('浓度无效');
+    warnMissingName(sample, c.warn);
+    if (!Number.isFinite(conc) || conc <= 0) c.error('浓度无效');
     if (useIndividualVolume) {
-      if (!Number.isFinite(vol) || vol <= 0) e('样本体积无效');
+      if (!Number.isFinite(vol) || vol <= 0) c.error('样本体积无效');
     } else {
-      if (!Number.isFinite(currentVolume) || currentVolume <= 0) e('样本当前体积无效');
+      if (!Number.isFinite(currentVolume) || currentVolume <= 0) c.error('样本当前体积无效');
     }
-    if (targetConc === null) e('至少需要一个有效样本');
-    var equalizeInputsValid = isFinitePositive(conc) && isFinitePositive(vol) && isFinitePositive(targetConc);
-    if (equalizeInputsValid && (!isFinitePositive(totalProtein) || !isFinitePositive(finalVol) || !isFiniteNonNegative(loading))) {
-      e(DERIVED_RANGE_ERROR);
+    if (targetConc === null) c.error('至少需要一个有效样本');
+    if (isFinitePositive(conc) && isFinitePositive(vol) && isFinitePositive(targetConc) &&
+        (!isFinitePositive(totalProtein) || !isFinitePositive(finalVol) || !isFiniteNonNegative(loading))) {
+      c.error(DERIVED_RANGE_ERROR);
     }
-    if (Number.isFinite(finalVol) && finalVol > 0 && finalVol < vol - 1e-9) e('计算错误：最终体积小于当前体积');
-    if (Number.isFinite(loading) && loading > 0 && loading < 0.5) w('需加 1× Loading 体积 < 0.5 µL');
-    if (msgs.length === 0) msgs.push('可以配平');
+    if (Number.isFinite(finalVol) && finalVol > 0 && finalVol < vol - 1e-9) c.error('计算错误：最终体积小于当前体积');
+    warnSmallLoading(loading, c.warn, '需加 1× Loading 体积');
 
     return {
       name: sample.name, index: index, concentration: conc,
       currentVolume: vol, totalProtein: totalProtein,
       targetConcentration: targetConc, finalVolume: finalVol,
       loadingVolume: loading,
-      messages: msgs, severity: sev
+      messages: c.messages, severity: c.finish()
     };
   });
 
@@ -157,12 +216,11 @@ function calculatePerWell(samples, settings) {
   var targetMass = settings.targetMass;
   var finalVolume = settings.finalVolume;
   var lossMargin = settings.lossMargin;
-  var minVol = 0.5;
 
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
   var scaleFactor = marginCheck.valid ? lossScaleFactor(marginCheck.value) : null;
-  var totalWithMargin = Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
+  var totalWithMargin = scaledTotal(finalVolume, scaleFactor);
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'perWell', false); });
 
@@ -171,41 +229,35 @@ function calculatePerWell(samples, settings) {
     var availableVol = toFiniteNumber(sample.availableVolume);
 
     var theoreticalVol = conc > 0 && targetMass > 0 ? targetMass / conc : null;
-    var sampleVolBase = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
-    var dilution = suggestPreDilution(sampleVolBase, minVol);
-    var sampleVol = dilution ? dilution.adjustedVolume : sampleVolBase;
-    var originalConsumed = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
+    var sampleVolBase = multiplyFinite(theoreticalVol, scaleFactor);
+    var dilutionStep = applyPreDilution(sampleVolBase);
+    var dilution = dilutionStep.dilution;
+    var sampleVol = dilutionStep.volume;
+    var originalConsumed = sampleVolBase;
     var loading = Number.isFinite(sampleVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - sampleVol : null;
 
-    var msgs = [];
-    var sev = 'ok';
-    var e = function (m) { msgs.push(m); sev = 'error'; };
-    var w = function (m) { msgs.push(m); if (sev !== 'error') sev = 'warning'; };
+    var c = createMessages('可以配平');
 
-    if (!sample.name || !sample.name.trim()) w('未填写样本名');
-    if (!Number.isFinite(conc) || conc <= 0) e('浓度无效');
-    if (!Number.isFinite(targetMass) || targetMass <= 0) e('目标蛋白量无效');
-    if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('统一上样体积无效');
-    if (marginError) e(marginError);
-    var perWellInputsValid = isFinitePositive(conc) && isFinitePositive(targetMass) && isFinitePositive(finalVolume) && marginCheck.valid;
-    if (perWellInputsValid && (!isFinitePositive(theoreticalVol) || !isFinitePositive(sampleVolBase) || !isFinitePositive(sampleVol) || !isFinitePositive(originalConsumed) || !isFinitePositive(totalWithMargin) || !Number.isFinite(loading))) {
-      e(DERIVED_RANGE_ERROR);
+    warnMissingName(sample, c.warn);
+    if (!Number.isFinite(conc) || conc <= 0) c.error('浓度无效');
+    if (!Number.isFinite(targetMass) || targetMass <= 0) c.error('目标蛋白量无效');
+    if (!Number.isFinite(finalVolume) || finalVolume <= 0) c.error('统一上样体积无效');
+    if (marginError) c.error(marginError);
+    if (isFinitePositive(conc) && isFinitePositive(targetMass) && isFinitePositive(finalVolume) && marginCheck.valid &&
+        (!allPositive([theoreticalVol, sampleVolBase, sampleVol, originalConsumed, totalWithMargin]) || !Number.isFinite(loading))) {
+      c.error(DERIVED_RANGE_ERROR);
     }
-    if (Number.isFinite(loading) && loading < -1e-9) e('样品体积超过总体积，请降低目标蛋白量或增大上样体积');
-    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
-    if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
-      w('取样体积 ' + sampleVolBase.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
-    }
-    if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && !dilution) w('取样体积 < 0.5 µL');
-    if (Number.isFinite(loading) && loading > 0 && loading < 0.5) w('1× Loading 体积 < 0.5 µL');
-    if (msgs.length === 0) msgs.push('可以配平');
+    if (Number.isFinite(loading) && loading < -1e-9) c.error('样品体积超过总体积，请降低目标蛋白量或增大上样体积');
+    errorIfNotEnoughAvailable(availableVol, originalConsumed, c.error);
+    warnPreDilution(sampleVolBase, dilution, c.warn, '取样体积');
+    warnSmallLoading(loading, c.warn, '1× Loading 体积');
 
     return {
       name: sample.name, index: index, concentration: conc,
       sampleVolume: sampleVol, loadingVolume: loading,
       finalVolume: totalWithMargin, dilution: dilution,
       originalConsumed: originalConsumed, availableVolume: availableVol,
-      messages: msgs, severity: sev
+      messages: c.messages, severity: c.finish()
     };
   });
 
@@ -237,12 +289,11 @@ function calculatePerWell(samples, settings) {
 function calculateRebalance(samples, settings) {
   var finalVolume = settings.finalVolume;
   var lossMargin = settings.lossMargin;
-  var minVol = 0.5;
 
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
   var scaleFactor = marginCheck.valid ? lossScaleFactor(marginCheck.value) : null;
-  var totalWithMargin = Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
+  var totalWithMargin = scaledTotal(finalVolume, scaleFactor);
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'rebalance', false); });
 
@@ -290,41 +341,35 @@ function calculateRebalance(samples, settings) {
       }
     }
 
-    var dilution = suggestPreDilution(sampleVol, minVol);
-    var pipettingVol = dilution ? dilution.adjustedVolume : sampleVol;
+    var dilutionStep = applyPreDilution(sampleVol);
+    var dilution = dilutionStep.dilution;
+    var pipettingVol = dilutionStep.volume;
     var originalConsumed = sampleVol;
     var loading = Number.isFinite(pipettingVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - pipettingVol : null;
 
-    var msgs = [];
-    var sev = 'ok';
-    var e = function (m) { msgs.push(m); sev = 'error'; };
-    var w = function (m) { msgs.push(m); if (sev !== 'error') sev = 'warning'; };
+    var c = createMessages('可以配平');
 
-    if (!sample.name || !sample.name.trim()) w('未填写样本名');
-    if (!Number.isFinite(imageVal) || imageVal <= 0) e('ImageJ 内参值无效');
-    if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('统一上样体积无效');
-    if (marginError) e(marginError);
-    if (partialPrevError) e(partialPrevError);
-    if (reference === null && (Number.isFinite(imageVal) && imageVal > 0)) e('至少需要一个有效样本');
-    var rebalanceInputsValid = isFinitePositive(imageVal) && isFinitePositive(finalVolume) && marginCheck.valid && !partialPrevError;
-    if (rebalanceInputsValid && (!isFinitePositive(reference) || !isFinitePositive(totalWithMargin) || !isFinitePositive(sampleVol) || !isFinitePositive(pipettingVol) || !Number.isFinite(loading))) {
-      e(DERIVED_RANGE_ERROR);
+    warnMissingName(sample, c.warn);
+    if (!Number.isFinite(imageVal) || imageVal <= 0) c.error('ImageJ 内参值无效');
+    if (!Number.isFinite(finalVolume) || finalVolume <= 0) c.error('统一上样体积无效');
+    if (marginError) c.error(marginError);
+    if (partialPrevError) c.error(partialPrevError);
+    if (reference === null && (Number.isFinite(imageVal) && imageVal > 0)) c.error('至少需要一个有效样本');
+    if (isFinitePositive(imageVal) && isFinitePositive(finalVolume) && marginCheck.valid && !partialPrevError &&
+        (!allPositive([reference, totalWithMargin, sampleVol, pipettingVol]) || !Number.isFinite(loading))) {
+      c.error(DERIVED_RANGE_ERROR);
     }
-    if (Number.isFinite(loading) && loading < -1e-9) e('计算错误');
-    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
-    if (Number.isFinite(sampleVol) && sampleVol > 0 && sampleVol < minVol && dilution) {
-      w('取样体积 ' + sampleVol.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
-    }
-    if (Number.isFinite(sampleVol) && sampleVol > 0 && sampleVol < minVol && !dilution) w('取样体积 < 0.5 µL');
-    if (Number.isFinite(loading) && loading > 0 && loading < 0.5) w('1× Loading 体积 < 0.5 µL');
-    if (msgs.length === 0) msgs.push('可以配平');
+    if (Number.isFinite(loading) && loading < -1e-9) c.error('计算错误');
+    errorIfNotEnoughAvailable(availableVol, originalConsumed, c.error);
+    warnPreDilution(sampleVol, dilution, c.warn, '取样体积');
+    warnSmallLoading(loading, c.warn, '1× Loading 体积');
 
     return {
       name: sample.name, index: index, imageIntensity: imageVal,
       sampleVolume: pipettingVol, loadingVolume: loading,
       finalVolume: totalWithMargin, dilution: dilution,
       originalConsumed: originalConsumed, availableVolume: availableVol,
-      messages: msgs, severity: sev
+      messages: c.messages, severity: c.finish()
     };
   });
 
@@ -356,12 +401,11 @@ function calculatePrep(samples, settings) {
   var finalVolume = settings.finalVolume;
   var bufferFactor = settings.loadingBufferFactor;
   var lossMargin = settings.lossMargin;
-  var minVol = 0.5;
 
   var marginCheck = validateLossMargin(lossMargin);
   var marginError = !marginCheck.valid ? marginCheck.message : null;
   var scaleFactor = marginCheck.valid ? lossScaleFactor(marginCheck.value) : null;
-  var totalWithMargin = Number.isFinite(scaleFactor) && finalVolume > 0 ? finalVolume * scaleFactor : null;
+  var totalWithMargin = scaledTotal(finalVolume, scaleFactor);
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'prep', false); });
 
@@ -370,10 +414,11 @@ function calculatePrep(samples, settings) {
     var availableVol = toFiniteNumber(sample.availableVolume);
 
     var theoreticalVol = conc > 0 && targetMass > 0 ? targetMass / conc : null;
-    var sampleVolBase = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
-    var dilution = suggestPreDilution(sampleVolBase, minVol);
-    var sampleVol = dilution ? dilution.adjustedVolume : sampleVolBase;
-    var originalConsumed = Number.isFinite(theoreticalVol) && Number.isFinite(scaleFactor) ? theoreticalVol * scaleFactor : null;
+    var sampleVolBase = multiplyFinite(theoreticalVol, scaleFactor);
+    var dilutionStep = applyPreDilution(sampleVolBase);
+    var dilution = dilutionStep.dilution;
+    var sampleVol = dilutionStep.volume;
+    var originalConsumed = sampleVolBase;
     var loadingBufferVol = Number.isFinite(totalWithMargin) && totalWithMargin > 0 && bufferFactor > 0 ? totalWithMargin / bufferFactor : null;
     var makeupVol = null;
     if (Number.isFinite(sampleVol) && Number.isFinite(loadingBufferVol) && Number.isFinite(totalWithMargin)) {
@@ -381,35 +426,28 @@ function calculatePrep(samples, settings) {
       if (makeupVol < 0 && makeupVol > -1e-9) makeupVol = 0;
     }
 
-    var msgs = [];
-    var sev = 'ok';
-    var e = function (m) { msgs.push(m); sev = 'error'; };
-    var w = function (m) { msgs.push(m); if (sev !== 'error') sev = 'warning'; };
+    var c = createMessages('可以配制');
 
-    if (!sample.name || !sample.name.trim()) w('未填写样本名');
-    if (!Number.isFinite(conc) || conc <= 0) e('浓度无效');
-    if (!Number.isFinite(targetMass) || targetMass <= 0) e('目标蛋白量无效');
-    if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('最终体积无效');
-    if (!Number.isFinite(bufferFactor) || bufferFactor <= 0) e('Loading Buffer 倍数无效');
-    if (marginError) e(marginError);
-    var prepInputsValid = isFinitePositive(conc) && isFinitePositive(targetMass) && isFinitePositive(finalVolume) && isFinitePositive(bufferFactor) && marginCheck.valid;
-    if (prepInputsValid && (!isFinitePositive(theoreticalVol) || !isFinitePositive(sampleVolBase) || !isFinitePositive(sampleVol) || !isFinitePositive(originalConsumed) || !isFinitePositive(totalWithMargin) || !isFinitePositive(loadingBufferVol) || !Number.isFinite(makeupVol))) {
-      e(DERIVED_RANGE_ERROR);
+    warnMissingName(sample, c.warn);
+    if (!Number.isFinite(conc) || conc <= 0) c.error('浓度无效');
+    if (!Number.isFinite(targetMass) || targetMass <= 0) c.error('目标蛋白量无效');
+    if (!Number.isFinite(finalVolume) || finalVolume <= 0) c.error('最终体积无效');
+    if (!Number.isFinite(bufferFactor) || bufferFactor <= 0) c.error('Loading Buffer 倍数无效');
+    if (marginError) c.error(marginError);
+    if (isFinitePositive(conc) && isFinitePositive(targetMass) && isFinitePositive(finalVolume) && isFinitePositive(bufferFactor) && marginCheck.valid &&
+        (!allPositive([theoreticalVol, sampleVolBase, sampleVol, originalConsumed, totalWithMargin, loadingBufferVol]) || !Number.isFinite(makeupVol))) {
+      c.error(DERIVED_RANGE_ERROR);
     }
-    if (Number.isFinite(makeupVol) && makeupVol < -1e-9) e('补液体积为负，当前参数不可配制，请调整目标蛋白量或最终体积');
-    if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
-    if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
-      w('样品体积 ' + sampleVolBase.toFixed(2) + ' µL 低于最小可靠体积，建议预稀释 1:' + dilution.factor + ' 后取 ' + dilution.adjustedVolume.toFixed(2) + ' µL');
-    }
-    if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && !dilution) w('样品体积 < 0.5 µL');
-    if (msgs.length === 0) msgs.push('可以配制');
+    if (Number.isFinite(makeupVol) && makeupVol < -1e-9) c.error('补液体积为负，当前参数不可配制，请调整目标蛋白量或最终体积');
+    errorIfNotEnoughAvailable(availableVol, originalConsumed, c.error);
+    warnPreDilution(sampleVolBase, dilution, c.warn, '样品体积');
 
     return {
       name: sample.name, index: index, concentration: conc,
       sampleVolume: sampleVol, loadingBufferVol: loadingBufferVol,
       makeupVol: makeupVol, finalVolume: totalWithMargin,
       dilution: dilution, originalConsumed: originalConsumed,
-      availableVolume: availableVol, messages: msgs, severity: sev
+      availableVolume: availableVol, messages: c.messages, severity: c.finish()
     };
   });
 

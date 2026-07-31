@@ -48,7 +48,6 @@ var elements = {
 
 var state = getDefaultState();
 var latestResults = [];
-var latestReference = null;
 
 // ---------- 格式化函数（展示层） ----------
 
@@ -77,6 +76,90 @@ function escapeHtml(value) {
 function summaryValue(value) {
   return '<span class="summary-value">' + value + '</span>';
 }
+
+// ---------- 结果列定义（表格渲染与复制共用，纯函数可测试） ----------
+
+function resultName(r) {
+  return escapeHtml(r.name || '样本 ' + (r.index + 1));
+}
+
+function statusSpan(r) {
+  var sc = r.severity === 'ok' ? 'status-ok' : r.severity === 'warning' ? 'status-warning' : 'status-error';
+  return '<span class="status ' + sc + '">' + escapeHtml(r.messages.join('；')) + '</span>';
+}
+
+/** 预稀释提示片段；middleText 为 '预稀释 → '（perWell）或 ' → '（rebalance/prep）。 */
+function dilutionHintHtml(dilution, middleText) {
+  if (!dilution) return '';
+  return ' <span class="dilution-hint">(1:' + dilution.factor + middleText + formatVolume(dilution.adjustedVolume) + ')</span>';
+}
+
+function resultHeaders(mode, forCopy) {
+  return RESULT_COLUMNS[mode].map(function (c) { return forCopy ? c.copy : c.table; });
+}
+
+function resultTableHtml(mode, results) {
+  return results.map(function (r) {
+    return '<tr>' + RESULT_COLUMNS[mode].map(function (c) {
+      return '<td' + (c.tdClass ? ' class="' + c.tdClass + '"' : '') + '>' + c.cell(r) + '</td>';
+    }).join('') + '</tr>';
+  }).join('');
+}
+
+function resultCopyRows(mode, results) {
+  return results.map(function (r) {
+    return RESULT_COLUMNS[mode].map(function (c) { return c.text(r); });
+  });
+}
+
+// 单元格辅助（每模式通用部分）
+function concCell(r) { return formatConcentration(r.concentration); }
+function concText(r) { return formatNumber(r.concentration, 3); }
+function loadingVolCell(r) { return formatVolume(r.loadingVolume); }
+function loadingVolText(r) { return formatNumber(r.loadingVolume, 2); }
+function finalVolCell(r) { return formatVolume(r.finalVolume); }
+function finalVolText(r) { return formatNumber(r.finalVolume, 2); }
+function nameText(r) { return r.name; }
+function statusText(r) { return r.messages.join('；'); }
+function sampleVolCell(dilutionMiddle) {
+  return function (r) { return formatVolume(r.sampleVolume) + dilutionHintHtml(r.dilution, dilutionMiddle); };
+}
+
+var RESULT_COLUMNS = {
+  equalize: [
+    { table: '样本', copy: '样本', cell: resultName, text: nameText },
+    { table: '浓度', copy: '浓度(µg/µL)', cell: concCell, text: concText },
+    { table: '目标浓度', copy: '目标浓度(µg/µL)', cell: function (r) { return r.targetConcentration ? formatConcentration(r.targetConcentration) : '—'; }, text: function (r) { return formatNumber(r.targetConcentration, 3); } },
+    { table: '最终体积', copy: '最终体积(µL)', cell: finalVolCell, text: finalVolText },
+    { table: '需加 1× Loading', copy: '需加 1× Loading(µL)', tdClass: 'loading-col', cell: loadingVolCell, text: loadingVolText },
+    { table: '状态', copy: '状态', cell: statusSpan, text: statusText }
+  ],
+  perWell: [
+    { table: '样本', copy: '样本', cell: resultName, text: nameText },
+    { table: '浓度', copy: '浓度(µg/µL)', cell: concCell, text: concText },
+    { table: '需取样品体积', copy: '需取样品体积(µL)', tdClass: 'loading-col', cell: sampleVolCell('预稀释 → '), text: function (r) { return formatNumber(r.sampleVolume, 2); } },
+    { table: '需取1× Loading', copy: '需取1× Loading(µL)', tdClass: 'loading-col', cell: loadingVolCell, text: loadingVolText },
+    { table: '上样体积', copy: '统一上样体积(µL)', cell: finalVolCell, text: finalVolText },
+    { table: '状态', copy: '状态', cell: statusSpan, text: statusText }
+  ],
+  rebalance: [
+    { table: '样本', copy: '样本', cell: resultName, text: nameText },
+    { table: 'ImageJ', copy: 'ImageJ', cell: function (r) { return formatIntensity(r.imageIntensity); }, text: function (r) { return r.imageIntensity !== null && r.imageIntensity !== undefined ? formatNumber(r.imageIntensity, 3) : ''; } },
+    { table: '需取样品体积', copy: '需取样品体积(µL)', tdClass: 'loading-col', cell: sampleVolCell(' → '), text: function (r) { return formatNumber(r.sampleVolume, 2); } },
+    { table: '需取1× Loading', copy: '需取1× Loading(µL)', tdClass: 'loading-col', cell: loadingVolCell, text: loadingVolText },
+    { table: '上样体积', copy: '统一上样体积(µL)', cell: finalVolCell, text: finalVolText },
+    { table: '状态', copy: '状态', cell: statusSpan, text: statusText }
+  ],
+  prep: [
+    { table: '样本', copy: '样本', cell: resultName, text: nameText },
+    { table: '浓度', copy: '浓度(µg/µL)', cell: concCell, text: concText },
+    { table: '需取样品体积', copy: '需取样品体积(µL)', tdClass: 'loading-col', cell: sampleVolCell(' → '), text: function (r) { return formatNumber(r.sampleVolume, 2); } },
+    { table: '需取Loading Buffer', copy: '需取Loading Buffer(µL)', tdClass: 'loading-col', cell: function (r) { return formatVolume(r.loadingBufferVol); }, text: function (r) { return formatNumber(r.loadingBufferVol, 2); } },
+    { table: '需补液', copy: '需补液(µL)', tdClass: 'loading-col', cell: function (r) { return formatVolume(r.makeupVol); }, text: function (r) { return formatNumber(r.makeupVol, 2); } },
+    { table: '总体积', copy: '总体积(µL)', cell: finalVolCell, text: finalVolText },
+    { table: '状态', copy: '状态', cell: statusSpan, text: statusText }
+  ]
+};
 
 // ---------- 状态管理 ----------
 
@@ -172,15 +255,14 @@ function loadState() {
 }
 
 function saveState() {
-  // state.samples 是 samplesByMode[mode] 的引用，序列化前移除避免重复
-  var samplesRef = state.samples;
-  delete state.samples;
+  // state.samples 是 samplesByMode[mode] 的引用，序列化副本中移除避免重复存储
+  var toSave = Object.assign({}, state);
+  delete toSave.samples;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
   } catch (error) {
     console.warn('无法保存本地数据：', error);
   }
-  state.samples = samplesRef;
 }
 
 // ---------- UI 描述 ----------
@@ -340,7 +422,6 @@ function calculate() {
   }
 
   latestResults = result.results;
-  latestReference = result.reference;
   elements.formulaNote.innerHTML = getFormulaNote(result.summary);
   renderResults(result);
   saveState();
@@ -350,53 +431,53 @@ function calculate() {
 
 function renderResults(result) {
   var summary = result.summary;
-  var validCount = latestResults.filter(function (r) { return r.severity !== 'error'; }).length;
-  var warnCount = latestResults.filter(function (r) { return r.severity === 'warning'; }).length;
-  var errCount = latestResults.filter(function (r) { return r.severity === 'error'; }).length;
+  var results = result.results;
+  var reference = result.reference;
   var mode = state.workflowMode;
+  var validCount = results.filter(function (r) { return r.severity !== 'error'; }).length;
+  var warnCount = results.filter(function (r) { return r.severity === 'warning'; }).length;
+  var errCount = results.filter(function (r) { return r.severity === 'error'; }).length;
 
   // 统计卡片
+  var items = [];
+  function item(label, value) {
+    items.push('<div class="summary-item"><span class="summary-label">' + label + '</span>' + summaryValue(value) + '</div>');
+  }
   if (mode === 'equalize') {
-    elements.summary.innerHTML =
-      '<div class="summary-item"><span class="summary-label">目标浓度（最低）</span>' + summaryValue(latestReference !== null ? formatConcentration(latestReference) : '—') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">' + (state.useIndividualVolume ? '样本体积' : '样本当前体积') + '</span>' + summaryValue(state.useIndividualVolume ? '各样本不同' : formatVolume(state.currentVolume)) + '</div>' +
-      '<div class="summary-item"><span class="summary-label">配平模式</span>' + summaryValue('变性后重新配平') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
+    item('目标浓度（最低）', reference !== null ? formatConcentration(reference) : '—');
+    item(state.useIndividualVolume ? '样本体积' : '样本当前体积', state.useIndividualVolume ? '各样本不同' : formatVolume(state.currentVolume));
+    item('配平模式', '变性后重新配平');
   } else if (mode === 'perWell') {
     var marginInfo = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
-    elements.summary.innerHTML =
-      '<div class="summary-item"><span class="summary-label">目标蛋白量 / 孔</span>' + summaryValue(state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">统一上样体积' + marginInfo + '</span>' + summaryValue(formatVolume(summary.totalWithMargin)) + '</div>' +
-      '<div class="summary-item"><span class="summary-label">配平模式</span>' + summaryValue('上样配平') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
+    item('目标蛋白量 / 孔', state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—');
+    item('统一上样体积' + marginInfo, formatVolume(summary.totalWithMargin));
+    item('配平模式', '上样配平');
   } else if (mode === 'rebalance') {
     var mInfo = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
     var refLabel = summary.useNormalized ? '参考相对浓度（最低 ImageJ/µL）' : '参考 ImageJ（最低值）';
-    var refValue = summary.useNormalized ? formatNumber(latestReference, 4) : formatIntensity(latestReference);
-    elements.summary.innerHTML =
-      '<div class="summary-item"><span class="summary-label">' + refLabel + '</span>' + summaryValue(refValue) + '</div>' +
-      '<div class="summary-item"><span class="summary-label">统一上样体积' + mInfo + '</span>' + summaryValue(formatVolume(summary.totalWithMargin)) + '</div>' +
-      '<div class="summary-item"><span class="summary-label">配平模式</span>' + summaryValue('ImageJ 配平') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
+    var refValue = summary.useNormalized ? formatNumber(reference, 4) : formatIntensity(reference);
+    item(refLabel, refValue);
+    item('统一上样体积' + mInfo, formatVolume(summary.totalWithMargin));
+    item('配平模式', 'ImageJ 配平');
   } else {
     var mInfo2 = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
-    elements.summary.innerHTML =
-      '<div class="summary-item"><span class="summary-label">目标蛋白量</span>' + summaryValue(state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">Buffer 倍数</span>' + summaryValue((state.loadingBufferFactor || 5) + '×') + '</div>' +
-      '<div class="summary-item"><span class="summary-label">最终体积' + mInfo2 + '</span>' + summaryValue(formatVolume(summary.totalWithMargin)) + '</div>' +
-      '<div class="summary-item"><span class="summary-label">有效样本</span>' + summaryValue(validCount + ' / ' + latestResults.length) + '</div>';
+    item('目标蛋白量', state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—');
+    item('Buffer 倍数', (state.loadingBufferFactor || 5) + '×');
+    item('最终体积' + mInfo2, formatVolume(summary.totalWithMargin));
   }
+  item('有效样本', validCount + ' / ' + results.length);
+  elements.summary.innerHTML = items.join('');
 
   // 提示条
   var alerts = [];
-  if (mode === 'rebalance' && Number.isFinite(latestReference)) {
+  if (mode === 'rebalance' && Number.isFinite(reference)) {
     if (summary.useNormalized) {
       alerts.push('<div class="alert alert-success">根据 ImageJ 值和上轮取样体积计算单位体积相对浓度，以最低相对浓度样品为参考进行配平。</div>');
     } else {
-      alerts.push('<div class="alert alert-success">以最低 ImageJ 值 ' + formatIntensity(latestReference) + ' 为参考，低者占满体积。</div>');
+      alerts.push('<div class="alert alert-success">以最低 ImageJ 值 ' + formatIntensity(reference) + ' 为参考，低者占满体积。</div>');
     }
-  } else if (mode === 'equalize' && Number.isFinite(latestReference)) {
-    alerts.push('<div class="alert alert-success">目标浓度（最低样本浓度）为 ' + formatConcentration(latestReference) + '。最低浓度样本无需加入 1× Loading。</div>');
+  } else if (mode === 'equalize' && Number.isFinite(reference)) {
+    alerts.push('<div class="alert alert-success">目标浓度（最低样本浓度）为 ' + formatConcentration(reference) + '。最低浓度样本无需加入 1× Loading。</div>');
   }
   if (summary.marginError) {
     alerts.push('<div class="alert alert-danger">' + escapeHtml(summary.marginError) + '</div>');
@@ -409,7 +490,7 @@ function renderResults(result) {
   elements.alerts.innerHTML = alerts.join('');
 
   // 复制按钮状态（必须在空结果 return 之前设置）
-  if (latestResults.length === 0) {
+  if (results.length === 0) {
     elements.copyBtn.disabled = true;
     elements.copyBtn.textContent = '暂无结果可复制';
     elements.resultsHead.innerHTML = '';
@@ -419,73 +500,9 @@ function renderResults(result) {
   elements.copyBtn.disabled = errCount > 0;
   elements.copyBtn.textContent = errCount > 0 ? '存在错误，无法复制' : '复制结果';
 
-  // 表头
-  var headers;
-  if (mode === 'equalize') {
-    headers = ['样本', '浓度', '目标浓度', '最终体积', '需加 1× Loading', '状态'];
-  } else if (mode === 'perWell') {
-    headers = ['样本', '浓度', '需取样品体积', '需取1× Loading', '上样体积', '状态'];
-  } else if (mode === 'rebalance') {
-    headers = ['样本', 'ImageJ', '需取样品体积', '需取1× Loading', '上样体积', '状态'];
-  } else {
-    headers = ['样本', '浓度', '需取样品体积', '需取Loading Buffer', '需补液', '总体积', '状态'];
-  }
-  elements.resultsHead.innerHTML = headers.map(function (h) { return '<th scope="col">' + h + '</th>'; }).join('');
-
-  // 表身
-  elements.resultsBody.innerHTML = latestResults.map(function (r) {
-    var sc = r.severity === 'ok' ? 'status-ok' : r.severity === 'warning' ? 'status-warning' : 'status-error';
-    var st = '<span class="status ' + sc + '">' + escapeHtml(r.messages.join('；')) + '</span>';
-
-    if (mode === 'equalize') {
-      return '<tr><td>' + escapeHtml(r.name || '样本 ' + (r.index + 1)) + '</td>' +
-        '<td>' + formatConcentration(r.concentration) + '</td>' +
-        '<td>' + (r.targetConcentration ? formatConcentration(r.targetConcentration) : '—') + '</td>' +
-        '<td>' + formatVolume(r.finalVolume) + '</td>' +
-        '<td class="loading-col">' + formatVolume(r.loadingVolume) + '</td>' +
-        '<td>' + st + '</td></tr>';
-    }
-
-    if (mode === 'perWell') {
-      var sv = formatVolume(r.sampleVolume);
-      if (r.dilution) {
-        sv += ' <span class="dilution-hint">(1:' + r.dilution.factor + '预稀释 → ' + formatVolume(r.dilution.adjustedVolume) + ')</span>';
-      }
-      return '<tr><td>' + escapeHtml(r.name || '样本 ' + (r.index + 1)) + '</td>' +
-        '<td>' + formatConcentration(r.concentration) + '</td>' +
-        '<td class="loading-col">' + sv + '</td>' +
-        '<td class="loading-col">' + formatVolume(r.loadingVolume) + '</td>' +
-        '<td>' + formatVolume(r.finalVolume) + '</td>' +
-        '<td>' + st + '</td></tr>';
-    }
-
-    if (mode === 'rebalance') {
-      var sv2 = formatVolume(r.sampleVolume);
-      if (r.dilution) {
-        sv2 += ' <span class="dilution-hint">(1:' + r.dilution.factor + ' → ' + formatVolume(r.dilution.adjustedVolume) + ')</span>';
-      }
-      return '<tr><td>' + escapeHtml(r.name || '样本 ' + (r.index + 1)) + '</td>' +
-        '<td>' + formatIntensity(r.imageIntensity) + '</td>' +
-        '<td class="loading-col">' + sv2 + '</td>' +
-        '<td class="loading-col">' + formatVolume(r.loadingVolume) + '</td>' +
-        '<td>' + formatVolume(r.finalVolume) + '</td>' +
-        '<td>' + st + '</td></tr>';
-    }
-
-    // prep mode
-    var sv3 = formatVolume(r.sampleVolume);
-    var mv = formatVolume(r.makeupVol);
-    if (r.dilution) {
-      sv3 += ' <span class="dilution-hint">(1:' + r.dilution.factor + ' → ' + formatVolume(r.dilution.adjustedVolume) + ')</span>';
-    }
-    return '<tr><td>' + escapeHtml(r.name || '样本 ' + (r.index + 1)) + '</td>' +
-      '<td>' + formatConcentration(r.concentration) + '</td>' +
-      '<td class="loading-col">' + sv3 + '</td>' +
-      '<td class="loading-col">' + formatVolume(r.loadingBufferVol) + '</td>' +
-      '<td class="loading-col">' + mv + '</td>' +
-      '<td>' + formatVolume(r.finalVolume) + '</td>' +
-      '<td>' + st + '</td></tr>';
-  }).join('');
+  // 表头与表身（列定义见 RESULT_COLUMNS）
+  elements.resultsHead.innerHTML = resultHeaders(mode, false).map(function (h) { return '<th scope="col">' + h + '</th>'; }).join('');
+  elements.resultsBody.innerHTML = resultTableHtml(mode, results);
 }
 
 // ---------- 样本操作 ----------
@@ -525,9 +542,9 @@ function updateSampleFromInput(input) {
 // ---------- 粘贴导入（按模式列映射，只填充有效列）----------
 
 function pasteData() {
-  elements.pasteArea.classList.toggle('hidden');
+  // 点击即切换显隐；若由显示变为隐藏则直接退出
+  if (elements.pasteArea.classList.toggle('hidden')) return;
   elements.pasteArea.focus();
-  if (elements.pasteArea.classList.contains('hidden')) return;
   elements.pasteArea.oninput = function () {
     var text = elements.pasteArea.value.trim();
     if (!text) return;
@@ -574,24 +591,8 @@ function pasteData() {
 
 async function copyResults() {
   var mode = state.workflowMode;
-  var headers;
-  if (mode === 'equalize') {
-    headers = ['样本', '浓度(µg/µL)', '目标浓度(µg/µL)', '最终体积(µL)', '需加 1× Loading(µL)', '状态'];
-  } else if (mode === 'perWell') {
-    headers = ['样本', '浓度(µg/µL)', '需取样品体积(µL)', '需取1× Loading(µL)', '统一上样体积(µL)', '状态'];
-  } else if (mode === 'rebalance') {
-    headers = ['样本', 'ImageJ', '需取样品体积(µL)', '需取1× Loading(µL)', '统一上样体积(µL)', '状态'];
-  } else {
-    headers = ['样本', '浓度(µg/µL)', '需取样品体积(µL)', '需取Loading Buffer(µL)', '需补液(µL)', '总体积(µL)', '状态'];
-  }
-
-  var rows = latestResults.map(function (r) {
-    if (mode === 'equalize') return [r.name, formatNumber(r.concentration, 3), formatNumber(r.targetConcentration, 3), formatNumber(r.finalVolume, 2), formatNumber(r.loadingVolume, 2), r.messages.join('；')];
-    if (mode === 'perWell') return [r.name, formatNumber(r.concentration, 3), formatNumber(r.sampleVolume, 2), formatNumber(r.loadingVolume, 2), formatNumber(r.finalVolume, 2), r.messages.join('；')];
-    if (mode === 'rebalance') return [r.name, r.imageIntensity !== null && r.imageIntensity !== undefined ? formatNumber(r.imageIntensity, 3) : '', formatNumber(r.sampleVolume, 2), formatNumber(r.loadingVolume, 2), formatNumber(r.finalVolume, 2), r.messages.join('；')];
-    return [r.name, formatNumber(r.concentration, 3), formatNumber(r.sampleVolume, 2), formatNumber(r.loadingBufferVol, 2), formatNumber(r.makeupVol, 2), formatNumber(r.finalVolume, 2), r.messages.join('；')];
-  });
-
+  var headers = resultHeaders(mode, true);
+  var rows = resultCopyRows(mode, latestResults);
   var text = [headers].concat(rows).map(function (row) { return row.join('\t'); }).join('\n');
   try {
     await navigator.clipboard.writeText(text);

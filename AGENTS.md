@@ -34,11 +34,11 @@
 .
 ├── index.html       # 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明
 ├── styles.css       # 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色
-├── calculator.js    # 所有纯计算逻辑（约 448 行），见下
-├── app.js           # UI 控制器（约 683 行），见下
+├── calculator.js    # 所有纯计算逻辑（约 486 行），见下
+├── app.js           # UI 控制器（约 686 行），见下
 ├── tests/
 │   ├── test-calculator.js  # 计算函数测试（129 项），导入 calculator.js
-│   └── test-ui-state.js    # 状态恢复与无障碍标记测试（14 项），用 vm 隔离执行 app.js
+│   └── test-ui-state.js    # 状态恢复、无障碍标记与结果展示测试（36 项），用 vm 隔离执行 app.js
 ├── wrangler.toml    # Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "."
 ├── _headers         # Cloudflare Pages 安全响应头（含严格的 CSP，style-src 'self' 不允许内联样式）
 ├── .gitignore       # 忽略 .wrangler/、.dev.vars、node_modules/、系统文件
@@ -47,23 +47,25 @@
 
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
-1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleNumericallyValid()`（仅看数字字段，用于参考值计算）/ `isSampleComplete()`（含名称，用于界面提示）
-2. 各模式计算：`calculateEqualize()` / `calculatePerWell()` / `calculateRebalance()` / `calculatePrep()`——统一返回 `{ results, reference, summary }`
-3. 计算链：理论体积 → 损耗余量同比放大 → 预稀释检查 → Loading/补液。不做移液取整。
-4. 预稀释场景中：`originalConsumed` 记录原液消耗量（用于检查库存），`sampleVolume` 为稀释后移液体积
-5. 末端 `module.exports` 块用于 Node 测试，浏览器环境忽略
+1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleNumericallyValid()`（仅看数字字段，用于参考值计算）/ `isSampleComplete()`（含名称，目前仅导出未在 UI 使用）
+2. 各模式共用辅助：`createMessages()`（收集消息并决定 severity）/ `multiplyFinite()`（理论体积 × 放大系数）/ `scaledTotal()`（最终体积 × 放大系数）/ `applyPreDilution()`（预稀释建议）/ `warnMissingName()` / `warnSmallLoading()` / `errorIfNotEnoughAvailable()` / `warnPreDilution()` / `allPositive()`（范围错误检测）
+3. 各模式计算：`calculateEqualize()` / `calculatePerWell()` / `calculateRebalance()` / `calculatePrep()`——统一返回 `{ results, reference, summary }`
+4. 计算链：理论体积 → 损耗余量同比放大 → 预稀释检查 → Loading/补液。不做移液取整。
+5. 预稀释场景中：`originalConsumed` 记录原液消耗量（用于检查库存），`sampleVolume` 为稀释后移液体积
+6. 末端 `module.exports` 块用于 Node 测试，浏览器环境忽略
 
 `app.js` 内部分层（从上到下）：
 
 1. DOM 引用集中在 `elements` 对象中
 2. 格式化函数：`formatVolume()` / `formatNumber()` / `formatConcentration()` / `formatIntensity()` / `escapeHtml()`
-3. 状态管理：`getDefaultState()` / `loadState()` / `saveState()`（localStorage，序列化前移除 `samples` 引用避免重复）/ `loadModeSamples()`（`state.samples` 直接引用 `state.samplesByMode[mode]`，不再双写）
-4. `syncControlsFromState()`：按当前模式显示/隐藏对应设置项，prep 模式下显示目标蛋白量和最终体积
-5. `calculate()`：读取设置 → 委托对应 calculator 函数 → `renderResults()` + `saveState()`
-6. 渲染：`renderSampleRows()`（按模式显示不同列）、`renderResults()`（统计卡片 + 提示条 + 结果表格）
-7. `pasteData()`：按模式列映射（equalize: name/concentration/availableVolume；perWell: name/concentration/availableVolume；rebalance: name/imageIntensity/availableVolume/prevVolume；prep: name/concentration/availableVolume）
-8. `copyResults()`（剪贴板 API 失败时降级为 `window.prompt`）
-9. `bindEvents()` + 文件末尾的初始化调用（单次 `calculate()`）
+3. 结果列定义（纯函数）：`RESULT_COLUMNS` 按模式声明每列的表格表头、复制表头、HTML 单元格与复制文本（含 `loading-col` 类）；`resultHeaders()` / `resultTableHtml()` / `resultCopyRows()` 供渲染与复制共用——**表头和列定义只维护这一份**
+4. 状态管理：`getDefaultState()` / `loadState()` / `saveState()`（localStorage，对 `state` 做浅拷贝后移除 `samples` 引用避免重复存储）/ `loadModeSamples()`（`state.samples` 直接引用 `state.samplesByMode[mode]`，不再双写）
+5. `syncControlsFromState()`：按当前模式显示/隐藏对应设置项，prep 模式下显示目标蛋白量和最终体积
+6. `calculate()`：读取设置 → 委托对应 calculator 函数 → `renderResults()` + `saveState()`
+7. 渲染：`renderSampleRows()`（按模式显示不同列）、`renderResults()`（统计卡片 + 提示条 + 结果表格）
+8. `pasteData()`：按模式列映射（equalize: name/concentration/availableVolume；perWell: name/concentration/availableVolume；rebalance: name/imageIntensity/availableVolume/prevVolume；prep: name/concentration/availableVolume）
+9. `copyResults()`（剪贴板 API 失败时降级为 `window.prompt`）
+10. `bindEvents()` + 文件末尾的初始化调用（单次 `calculate()`）
 
 ## 计算公式（修改逻辑时勿改错）
 
@@ -103,7 +105,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
 
 - 运行计算测试：`node tests/test-calculator.js`（应输出 `129 passed, 0 failed`）
-- 运行状态测试：`node tests/test-ui-state.js`（应输出 `14 passed, 0 failed`）
+- 运行状态测试：`node tests/test-ui-state.js`（应输出 `36 passed, 0 failed`）
 - 语法检查：`node --check calculator.js && node --check app.js && node --check tests/test-calculator.js && node --check tests/test-ui-state.js`
 - 本地预览（任选其一）：
   - 直接双击打开 `index.html`；
@@ -115,7 +117,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 ## 验证改动的方式
 
-1. `node tests/test-calculator.js`（129 passed, 0 failed）、`node tests/test-ui-state.js`（14 passed, 0 failed）和全部 JS 文件 `node --check` 通过；
+1. `node tests/test-calculator.js`（129 passed, 0 failed）、`node tests/test-ui-state.js`（36 passed, 0 failed）和全部 JS 文件 `node --check` 通过；
 2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
 3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
 4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
@@ -126,13 +128,13 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 - 文件顶部 `'use strict';`；函数声明式（`function name()`），无类、无模块系统；现状使用 `var`，新增代码保持与周围一致。
 - 纯计算逻辑（公式、校验）写入 `calculator.js`；展示逻辑（格式化、DOM 操作、localStorage）写入 `app.js`。计算函数必须是纯函数，不访问 DOM。
-- JSON 序列化时 `state.samples` 会被删除（它是 `samplesByMode[mode]` 的引用，避免重复存储）。
+- `saveState()` 对 `state` 做浅拷贝后删除拷贝中的 `samples`（它是 `samplesByMode[mode]` 的引用，避免重复存储），原对象不受影响。
 - 数值处理统一走 `toFiniteNumber()`（空值返回 `null`）；显示格式化统一走 `formatVolume()` / `formatConcentration()` / `formatNumber()`。
 - 比较浮点数时使用 `1e-9` 容差，不要改成严格相等。
 - 动态拼接 HTML 时，用户输入必须经过 `escapeHtml()` 转义。
 - 面向用户的文本（按钮、提示、校验消息）使用中文；复制结果的表头也是中文。
 - 所有内联 `style="..."` 属性必须改用 CSS 类（CSP `style-src 'self'` 不允许内联样式）。
-- 新增样本相关字段时，需同步：`blankSamples()`、`renderSampleRows()` 列显隐、`updateSampleFromInput()`、粘贴导入的列映射（`pasteData()`）、`copyResults()`。新增设置项时需同步：`getDefaultState()`、`syncControlsFromState()`（显隐 + 回写值）、`readSettings()`、`bindEvents()` 的监听。
+- 新增样本相关字段时，需同步：`blankSamples()`、`renderSampleRows()` 列显隐、`updateSampleFromInput()`、粘贴导入的列映射（`pasteData()`）、`copyResults()`。新增结果列时只需在 `RESULT_COLUMNS` 增加一项（表格与复制自动生效）。新增设置项时需同步：`getDefaultState()`、`syncControlsFromState()`（显隐 + 回写值）、`readSettings()`、`bindEvents()` 的监听。
 - `calculator.js` 新增函数时，同步更新 `tests/test-calculator.js` 和 `calculator.js` 末尾的 `module.exports`。
 
 ## 安全注意事项

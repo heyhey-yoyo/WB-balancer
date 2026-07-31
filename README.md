@@ -78,7 +78,7 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 ├── app.js           # UI 控制器（DOM 操作、状态管理、localStorage）
 ├── tests/
 │   ├── test-calculator.js  # 计算函数测试（129 项），直接导入 calculator.js
-│   └── test-ui-state.js    # 状态恢复与无障碍标记测试（14 项）
+│   └── test-ui-state.js    # 状态恢复、无障碍标记与结果展示测试（36 项）
 ├── wrangler.toml    # 项目配置
 ├── _headers         # 安全响应头
 ├── .gitignore
