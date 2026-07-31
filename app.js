@@ -424,11 +424,11 @@ function renderResults(result) {
   if (mode === 'equalize') {
     headers = ['样本', '浓度', '目标浓度', '最终体积', '需加 1× Loading', '状态'];
   } else if (mode === 'perWell') {
-    headers = ['样本', '浓度', '样品体积', '1× Loading', '上样体积', '状态'];
+    headers = ['样本', '浓度', '需取样品体积', '需取1× Loading', '上样体积', '状态'];
   } else if (mode === 'rebalance') {
-    headers = ['样本', 'ImageJ', '样品体积', '1× Loading', '上样体积', '状态'];
+    headers = ['样本', 'ImageJ', '需取样品体积', '需取1× Loading', '上样体积', '状态'];
   } else {
-    headers = ['样本', '浓度', '样品', 'Loading Buffer', '补液', '总体积', '状态'];
+    headers = ['样本', '浓度', '需取样品体积', '需取Loading Buffer', '需补液', '总体积', '状态'];
   }
   elements.resultsHead.innerHTML = headers.map(function (h) { return '<th scope="col">' + h + '</th>'; }).join('');
 
@@ -441,7 +441,7 @@ function renderResults(result) {
       return '<tr><td>' + escapeHtml(r.name || '样本 ' + (r.index + 1)) + '</td>' +
         '<td>' + formatConcentration(r.concentration) + '</td>' +
         '<td>' + (r.targetConcentration ? formatConcentration(r.targetConcentration) : '—') + '</td>' +
-        '<td class="loading-col">' + formatVolume(r.finalVolume) + '</td>' +
+        '<td>' + formatVolume(r.finalVolume) + '</td>' +
         '<td class="loading-col">' + formatVolume(r.loadingVolume) + '</td>' +
         '<td>' + st + '</td></tr>';
     }
@@ -481,8 +481,8 @@ function renderResults(result) {
     return '<tr><td>' + escapeHtml(r.name || '样本 ' + (r.index + 1)) + '</td>' +
       '<td>' + formatConcentration(r.concentration) + '</td>' +
       '<td class="loading-col">' + sv3 + '</td>' +
-      '<td>' + formatVolume(r.loadingBufferVol) + '</td>' +
-      '<td>' + mv + '</td>' +
+      '<td class="loading-col">' + formatVolume(r.loadingBufferVol) + '</td>' +
+      '<td class="loading-col">' + mv + '</td>' +
       '<td>' + formatVolume(r.finalVolume) + '</td>' +
       '<td>' + st + '</td></tr>';
   }).join('');
@@ -578,11 +578,11 @@ async function copyResults() {
   if (mode === 'equalize') {
     headers = ['样本', '浓度(µg/µL)', '目标浓度(µg/µL)', '最终体积(µL)', '需加 1× Loading(µL)', '状态'];
   } else if (mode === 'perWell') {
-    headers = ['样本', '浓度(µg/µL)', '样品体积(µL)', '1× Loading(µL)', '统一上样体积(µL)', '状态'];
+    headers = ['样本', '浓度(µg/µL)', '需取样品体积(µL)', '需取1× Loading(µL)', '统一上样体积(µL)', '状态'];
   } else if (mode === 'rebalance') {
-    headers = ['样本', 'ImageJ', '样品体积(µL)', '1× Loading(µL)', '统一上样体积(µL)', '状态'];
+    headers = ['样本', 'ImageJ', '需取样品体积(µL)', '需取1× Loading(µL)', '统一上样体积(µL)', '状态'];
   } else {
-    headers = ['样本', '浓度(µg/µL)', '样品(µL)', 'LB(µL)', '补液(µL)', '总体积(µL)', '状态'];
+    headers = ['样本', '浓度(µg/µL)', '需取样品体积(µL)', '需取Loading Buffer(µL)', '需补液(µL)', '总体积(µL)', '状态'];
   }
 
   var rows = latestResults.map(function (r) {
