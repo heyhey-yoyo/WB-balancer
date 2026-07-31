@@ -110,34 +110,64 @@ function getDefaultState() {
  * state.samples 是 state.samplesByMode[mode] 的引用——不再独立持久化。
  * 所有对 state.samples 的修改直接写入 samplesByMode，无需 saveCurrentSamples 同步。
  */
+var WORKFLOW_MODES = ['equalize', 'perWell', 'rebalance', 'prep'];
+
+function normalizeSample(sample, index) {
+  if (!sample || typeof sample !== 'object' || Array.isArray(sample)) {
+    sample = {};
+  }
+  function field(value) {
+    return value === null || value === undefined ? '' : String(value);
+  }
+  return {
+    name: field(sample.name),
+    concentration: field(sample.concentration),
+    individualVolume: field(sample.individualVolume),
+    prevVolume: field(sample.prevVolume),
+    availableVolume: field(sample.availableVolume),
+    imageIntensity: field(sample.imageIntensity),
+  };
+}
+
+function normalizeSampleList(samples) {
+  if (!Array.isArray(samples) || samples.length === 0) return blankSamples();
+  return samples.map(normalizeSample);
+}
+
 function loadModeSamples() {
-  var saved = state.samplesByMode[state.workflowMode];
-  state.samples = (saved && saved.length > 0) ? saved : blankSamples();
+  if (WORKFLOW_MODES.indexOf(state.workflowMode) === -1) {
+    state.workflowMode = 'equalize';
+  }
+  if (!state.samplesByMode || typeof state.samplesByMode !== 'object' || Array.isArray(state.samplesByMode)) {
+    state.samplesByMode = getDefaultState().samplesByMode;
+  }
+  var normalized = normalizeSampleList(state.samplesByMode[state.workflowMode]);
+  state.samplesByMode[state.workflowMode] = normalized;
+  state.samples = normalized;
 }
 
 function loadState() {
   try {
     var saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved) {
+    if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
       var def = getDefaultState();
+      var hasValidSamplesByMode = saved.samplesByMode && typeof saved.samplesByMode === 'object' && !Array.isArray(saved.samplesByMode);
       state = Object.assign(def, saved);
-      // 向后兼容：旧版本可能没有 samplesByMode
-      if (!state.samplesByMode) {
-        state.samplesByMode = {
-          equalize: blankSamples(),
-          perWell: blankSamples(),
-          rebalance: blankSamples(),
-          prep: blankSamples(),
-        };
+      // 向后兼容：旧版本可能只有顶层 samples。
+      if (!hasValidSamplesByMode) {
+        state.samplesByMode = def.samplesByMode;
         if (Array.isArray(saved.samples)) {
-          state.samplesByMode[saved.workflowMode || 'equalize'] = saved.samples;
+          var legacyMode = WORKFLOW_MODES.indexOf(saved.workflowMode) !== -1 ? saved.workflowMode : 'equalize';
+          state.samplesByMode[legacyMode] = saved.samples;
         }
       }
     }
-    // 无论有无保存数据，都必须初始化 state.samples 引用
-    loadModeSamples();
   } catch (error) {
     console.warn('无法读取本地保存的数据：', error);
+    state = getDefaultState();
+  } finally {
+    // 存储损坏或被浏览器阻止时也必须提供可渲染的默认样本。
+    loadModeSamples();
   }
 }
 

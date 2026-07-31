@@ -74,6 +74,16 @@ function isSampleComplete(sample, mode, useIndividualVolume) {
   return isSampleNumericallyValid(sample, mode, useIndividualVolume);
 }
 
+function isFinitePositive(value) {
+  return Number.isFinite(value) && value > 0;
+}
+
+function isFiniteNonNegative(value) {
+  return Number.isFinite(value) && value >= 0;
+}
+
+var DERIVED_RANGE_ERROR = '计算结果超出可处理范围，请减小输入数值';
+
 // ---------- 各模式计算 ----------
 
 function calculateEqualize(samples, currentVolume, useIndividualVolume) {
@@ -106,6 +116,10 @@ function calculateEqualize(samples, currentVolume, useIndividualVolume) {
       if (!Number.isFinite(currentVolume) || currentVolume <= 0) e('样本当前体积无效');
     }
     if (targetConc === null) e('至少需要一个有效样本');
+    var equalizeInputsValid = isFinitePositive(conc) && isFinitePositive(vol) && isFinitePositive(targetConc);
+    if (equalizeInputsValid && (!isFinitePositive(totalProtein) || !isFinitePositive(finalVol) || !isFiniteNonNegative(loading))) {
+      e(DERIVED_RANGE_ERROR);
+    }
     if (Number.isFinite(finalVol) && finalVol > 0 && finalVol < vol - 1e-9) e('计算错误：最终体积小于当前体积');
     if (Number.isFinite(loading) && loading > 0 && loading < 0.5) w('需加 1× Loading 体积 < 0.5 µL');
     if (msgs.length === 0) msgs.push('可以配平');
@@ -173,6 +187,10 @@ function calculatePerWell(samples, settings) {
     if (!Number.isFinite(targetMass) || targetMass <= 0) e('目标蛋白量无效');
     if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('统一上样体积无效');
     if (marginError) e(marginError);
+    var perWellInputsValid = isFinitePositive(conc) && isFinitePositive(targetMass) && isFinitePositive(finalVolume) && marginCheck.valid;
+    if (perWellInputsValid && (!isFinitePositive(theoreticalVol) || !isFinitePositive(sampleVolBase) || !isFinitePositive(sampleVol) || !isFinitePositive(originalConsumed) || !isFinitePositive(totalWithMargin) || !Number.isFinite(loading))) {
+      e(DERIVED_RANGE_ERROR);
+    }
     if (Number.isFinite(loading) && loading < -1e-9) e('样品体积超过总体积，请降低目标蛋白量或增大上样体积');
     if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
     if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {
@@ -288,6 +306,10 @@ function calculateRebalance(samples, settings) {
     if (marginError) e(marginError);
     if (partialPrevError) e(partialPrevError);
     if (reference === null && (Number.isFinite(imageVal) && imageVal > 0)) e('至少需要一个有效样本');
+    var rebalanceInputsValid = isFinitePositive(imageVal) && isFinitePositive(finalVolume) && marginCheck.valid && !partialPrevError;
+    if (rebalanceInputsValid && (!isFinitePositive(reference) || !isFinitePositive(totalWithMargin) || !isFinitePositive(sampleVol) || !isFinitePositive(pipettingVol) || !Number.isFinite(loading))) {
+      e(DERIVED_RANGE_ERROR);
+    }
     if (Number.isFinite(loading) && loading < -1e-9) e('计算错误');
     if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
     if (Number.isFinite(sampleVol) && sampleVol > 0 && sampleVol < minVol && dilution) {
@@ -370,6 +392,10 @@ function calculatePrep(samples, settings) {
     if (!Number.isFinite(finalVolume) || finalVolume <= 0) e('最终体积无效');
     if (!Number.isFinite(bufferFactor) || bufferFactor <= 0) e('Loading Buffer 倍数无效');
     if (marginError) e(marginError);
+    var prepInputsValid = isFinitePositive(conc) && isFinitePositive(targetMass) && isFinitePositive(finalVolume) && isFinitePositive(bufferFactor) && marginCheck.valid;
+    if (prepInputsValid && (!isFinitePositive(theoreticalVol) || !isFinitePositive(sampleVolBase) || !isFinitePositive(sampleVol) || !isFinitePositive(originalConsumed) || !isFinitePositive(totalWithMargin) || !isFinitePositive(loadingBufferVol) || !Number.isFinite(makeupVol))) {
+      e(DERIVED_RANGE_ERROR);
+    }
     if (Number.isFinite(makeupVol) && makeupVol < -1e-9) e('补液体积为负，当前参数不可配制，请调整目标蛋白量或最终体积');
     if (Number.isFinite(availableVol) && availableVol >= 0 && Number.isFinite(originalConsumed) && originalConsumed > availableVol + 1e-9) e('可用体积不足');
     if (Number.isFinite(sampleVolBase) && sampleVolBase > 0 && sampleVolBase < minVol && dilution) {

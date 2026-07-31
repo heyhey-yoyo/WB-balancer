@@ -480,5 +480,39 @@ assertNull(r.summary.marginError, 'ImageJ 10% → marginError null');
 assert(r.summary.scaleFactor > 1, 'ImageJ 10% → scaleFactor > 1');
 
 // ============================================================
+// 极端输入：派生结果不得以“成功”状态返回
+// ============================================================
+console.log('\n--- Derived Result Range Guards ---');
+
+r = calc.calculateEqualize([
+  { name: 'Overflow', concentration: '1e308' }
+], 1e308, false);
+assert(r.results[0].severity === 'error', 'equalize overflow → error');
+assert(r.results[0].messages.some(function (m) { return m.indexOf('超出可处理范围') >= 0; }), 'equalize overflow → range message');
+
+r = calc.calculateEqualize([
+  { name: 'Underflow', concentration: '1e-308' }
+], 1e-308, false);
+assert(r.results[0].severity === 'error', 'equalize underflow → error');
+
+r = calc.calculatePerWell([
+  { name: 'Overflow', concentration: '1e-308' }
+], { targetMass: 1e308, finalVolume: 20, lossMargin: 0 });
+assert(r.results[0].severity === 'error', 'perWell overflow → error');
+assert(r.results[0].messages.some(function (m) { return m.indexOf('超出可处理范围') >= 0; }), 'perWell overflow → range message');
+
+r = calc.calculateRebalance([
+  { name: 'Overflow', imageIntensity: '1e308', prevVolume: '1e-308' }
+], { finalVolume: 20, lossMargin: 0 });
+assert(r.results[0].severity === 'error', 'rebalance overflow → error');
+assert(r.results[0].messages.some(function (m) { return m.indexOf('超出可处理范围') >= 0; }), 'rebalance overflow → range message');
+
+r = calc.calculatePrep([
+  { name: 'Overflow', concentration: '1e-308' }
+], { targetMass: 1e308, finalVolume: 20, loadingBufferFactor: 5, lossMargin: 0 });
+assert(r.results[0].severity === 'error', 'prep overflow → error');
+assert(r.results[0].messages.some(function (m) { return m.indexOf('超出可处理范围') >= 0; }), 'prep overflow → range message');
+
+// ============================================================
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 if (failed > 0) process.exit(1);
