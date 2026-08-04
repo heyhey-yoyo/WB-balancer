@@ -35,7 +35,7 @@
 ├── index.html       # 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明
 ├── styles.css       # 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色
 ├── calculator.js    # 所有纯计算逻辑（约 486 行），见下
-├── app.js           # UI 控制器（约 686 行），见下
+├── app.js           # UI 控制器（约 684 行），见下
 ├── tests/
 │   ├── test-calculator.js  # 计算函数测试（129 项），导入 calculator.js
 │   └── test-ui-state.js    # 状态恢复、无障碍标记与结果展示测试（36 项），用 vm 隔离执行 app.js
