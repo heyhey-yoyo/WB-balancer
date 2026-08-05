@@ -92,6 +92,10 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 
 ---
 
+> AI 编程代理请阅读 [AGENTS.md](./AGENTS.md) 了解代码架构、测试策略与开发约定。
+
+---
+
 ## AI 维护提醒
 
 > **⚠️ 任何修改此项目的 AI 代理（Claude Code、Cursor、Copilot 等）都必须同步更新本文件与 AGENTS.md。**
