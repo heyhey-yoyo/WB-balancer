@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+.wrangler/
+.dev.vars
+node_modules/
+
+# Claude Code 本地配置（不提交）
+.claude/settings.local.json
