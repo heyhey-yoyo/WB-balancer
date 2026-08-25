@@ -26,7 +26,7 @@
 - 两个 JS 文件均以 `defer` 方式加载：`calculator.js`（纯计算）先于 `app.js`（UI 控制器）执行。`calculator.js` 的函数暴露为全局变量，`app.js` 直接调用。
 - 部署目标为 **Cloudflare Pages**（纯静态托管），由 `wrangler.toml` 和 `_headers` 配置。
 - 浏览器 API 依赖：`localStorage`、`navigator.clipboard`（带 `window.prompt` 降级方案）。
-- 视觉风格对齐姊妹项目 elisa-curve-tool：背景 `#F7F4EE`、主色 teal-600 `#0d9488`、卡片白底圆角 14px + `shadow-sm`、`ui-sans-serif` 系统字体栈 + 衬线品牌字（仅 "YDchen" 一词为衬线）。
+- 正文视觉风格对齐 `ydchen-portfolio`：背景 `#f3eee5`、主色陶土橙 `#c15f3c`、深色细线、衬线标题和系统无衬线正文；`YDchen Tools` 页眉保持原有结构、字体、颜色和布局不变。成功、警告、错误状态仍使用各自语义颜色。
 
 ## 文件结构与模块划分
 
