@@ -2,11 +2,7 @@
 
 一个纯前端的 Western blot 样本配平计算器。数据只在当前浏览器中处理，并通过 `localStorage` 保存，不会上传到服务器。
 
-## 视觉风格
-
-正文区域采用 `ydchen-portfolio` 的暖米白、陶土橙、衬线标题和细线网格风格；页眉中的 `YDchen Tools` 品牌结构、字体、颜色和布局保持不变。计算流程、表格密度和状态颜色继续服务于实验使用场景。
-
-## 功能
+## 主要功能
 
 四种配平模式，各模式的样本数据分别保存，切换互不影响。
 
@@ -21,7 +17,7 @@
 需加 1× Loading 体积 = 最终体积 − 样本体积
 ```
 
-默认所有样本体积相同，通过全局"样本当前体积"设置。也可勾选"各样本体积不同"逐样本填写。
+默认所有样本体积相同，通过全局「样本当前体积」设置。也可勾选「各样本体积不同」逐样本填写。
 
 最低浓度样本无需加入 1× Loading。
 
@@ -45,7 +41,7 @@
 1× Loading 体积 = 统一上样体积 − 修正样本体积
 ```
 
-最低 ImageJ 样本占满统一上样体积，其余按比例缩减，样本体积永不超过统一上样体积。如各样本上一轮取样体积不同，可逐样本填写"上轮取样体积"作为修正基准。
+最低 ImageJ 样本占满统一上样体积，其余按比例缩减，样本体积永不超过统一上样体积。如各样本上一轮取样体积不同，可逐样本填写「上轮取样体积」作为修正基准。
 
 **未变性样品配平**
 
@@ -62,7 +58,15 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 - **粘贴数据**：从 Excel 复制数据（制表符分隔）后直接粘贴到页面。注意列含义随模式不同：ImageJ 配平模式下第二列是 ImageJ 内参值，其余模式下第二列是蛋白浓度。
 - **复制结果**：将结果表以制表符分隔文本复制到剪贴板，可直接粘贴回 Excel。
 
-## 本地预览与部署
+## 界面风格
+
+正文区域采用 `ydchen-portfolio` 的暖米白、陶土橙、衬线标题和细线网格风格；页眉中的 `YDchen Tools` 品牌结构、字体、颜色和布局保持不变。计算流程、表格密度和状态颜色继续服务于实验使用场景。
+
+## 数据与隐私
+
+应用是纯静态网页，所有计算在浏览器本地完成，数据通过 `localStorage` 保存，不上传任何服务器。每个模式的样本数据分开保存，切换模式互不影响。
+
+## 本地运行
 
 没有构建步骤，任选其一本地预览：
 
@@ -70,29 +74,21 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 - `python -m http.server 8000` 后访问 `http://localhost:8000`；
 - `npx wrangler pages dev .`（模拟 Cloudflare Pages 环境）。
 
-部署到 Cloudflare Pages：连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空，输出目录 `.`），或命令行 `npx wrangler pages deploy . --project-name wb-balancer`。
+## 部署
 
-## 文件结构
+部署到 Cloudflare Pages：连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空，输出目录 `.`），或命令行：
 
-```text
-.
-├── index.html       # 页面结构
-├── styles.css       # 页面样式
-├── calculator.js    # 纯计算逻辑（所有配平公式，可独立测试）
-├── app.js           # UI 控制器（DOM 操作、状态管理、localStorage）
-├── tests/
-│   ├── test-calculator.js  # 计算函数测试（129 项），直接导入 calculator.js
-│   └── test-ui-state.js    # 状态恢复、无障碍标记与结果展示测试（36 项）
-├── wrangler.toml    # 项目配置
-├── _headers         # 安全响应头
-├── .gitignore
-├── AGENTS.md        # AI 代理维护说明
-└── README.md
+```bash
+npx wrangler pages deploy . --project-name wb-balancer
 ```
 
-## 实验提示
+## 责任边界
 
 本工具只负责体积计算。正式实验前，请结合试剂说明书和实验室 SOP，复核移液器量程、最小可靠移液体积、样本损耗以及修正后的总蛋白量是否符合实验设计。
+
+## License
+
+MIT
 
 ---
 
@@ -102,15 +98,10 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 
 ## AI 维护提醒
 
-> **⚠️ 任何修改此项目的 AI 代理（Claude Code、Cursor、Copilot 等）都必须同步更新本文件与 AGENTS.md。**
+> **⚠️ 任何修改此项目的 AI 代理都必须同步更新本文件与 AGENTS.md。**
 >
 > - 新增功能 → 在 README 中添加用户可理解的说明
-> - 新增/删除文件 → 更新本文和 AGENTS.md 中的文件清单
+> - 新增/删除文件 → 更新 AGENTS.md 中的文件清单
 > - 修改架构 → 更新 AGENTS.md 的架构说明
 > - 部署方式变更 → 同步更新本文部署章节
 > - 保持 **README 面向人类用户**，**AGENTS.md 面向 AI 代理**，两份文件不可互相替代
-
-
-## 项目标志
-
-浏览器标题栏使用统一系列的项目专属 `project-mark.svg`。页面中的 `YDchen Tools` 文字页眉保持原有结构、尺寸与样式，不使用项目标志替换。

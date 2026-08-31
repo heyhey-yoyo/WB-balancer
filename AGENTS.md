@@ -1,16 +1,14 @@
 # WB 样本配平工具 — 项目说明（供 AI 编程代理阅读）
 
-供 AI 编码代理阅读的项目说明。假设读者对本项目一无所知。
+## 项目概览
 
-## 项目概述
-
-**WB 样本配平工具**（wb-balancer）：一个**纯前端**的 Western blot 配平计算器。支持四种配平模式（见下），对浓度无效、可用体积不足、取样体积小于 0.5 µL（自动建议预稀释）等情况给出提示。
+**WB 样本配平工具**（wb-balancer）：一个纯前端的 Western blot 配平计算器。支持四种配平模式，对浓度无效、可用体积不足、取样体积小于 0.5 µL（自动建议预稀释）等情况给出提示。
 
 四种模式（`state.workflowMode`）：
 
-- `equalize` **变性后重新配平**：样本已变性且体积一致，以最低浓度为目标，加入 1× Loading 将各样本稀释至等浓度。支持"各样本体积不同"逐样本填写体积。
+- `equalize` **变性后重新配平**：样本已变性且体积一致，以最低浓度为目标，加入 1× Loading 将各样本稀释至等浓度。支持「各样本体积不同」逐样本填写体积。
 - `perWell` **上样配平**：按每孔目标蛋白量和各样本浓度计算取样体积，用 1× Loading 补足到统一上样体积。
-- `rebalance` **ImageJ 配平**：以 ImageJ 内参值作为相对浓度，以最低值为参考按比值修正取样体积；可填写"上轮取样体积"作为基准。
+- `rebalance` **ImageJ 配平**：以 ImageJ 内参值作为相对浓度，以最低值为参考按比值修正取样体积；可填写「上轮取样体积」作为基准。
 - `prep` **未变性样品配平**：同时计算样品、Loading Buffer（2× / 4× / 5× / 6×）和补液体积。
 
 关键特性：
@@ -20,7 +18,7 @@
 - 支持粘贴数据导入（制表符分隔，从 Excel 复制）、复制结果到剪贴板（制表符分隔）。
 - 界面与文档语言为**简体中文**（`lang="zh-CN"`），代码注释和面向用户的文本均使用中文。
 
-## 技术栈与运行时架构
+## 技术栈与运行架构
 
 - HTML5 / CSS3 / 原生 JavaScript（ES2020+，使用了 `replaceAll`、可选链等语法）。
 - 两个 JS 文件均以 `defer` 方式加载：`calculator.js`（纯计算）先于 `app.js`（UI 控制器）执行。`calculator.js` 的函数暴露为全局变量，`app.js` 直接调用。
@@ -28,22 +26,20 @@
 - 浏览器 API 依赖：`localStorage`、`navigator.clipboard`（带 `window.prompt` 降级方案）。
 - 正文视觉风格对齐 `ydchen-portfolio`：背景 `#f3eee5`、主色陶土橙 `#c15f3c`、深色细线、衬线标题和系统无衬线正文；`YDchen Tools` 页眉保持原有结构、字体、颜色和布局不变。成功、警告、错误状态仍使用各自语义颜色。
 
-## 文件结构与模块划分
+## 项目结构
 
-```text
-.
-├── index.html       # 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明
-├── styles.css       # 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色
-├── calculator.js    # 所有纯计算逻辑（约 486 行），见下
-├── app.js           # UI 控制器（约 684 行），见下
-├── tests/
-│   ├── test-calculator.js  # 计算函数测试（129 项），导入 calculator.js
-│   └── test-ui-state.js    # 状态恢复、无障碍标记与结果展示测试（36 项），用 vm 隔离执行 app.js
-├── wrangler.toml    # Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "."
-├── _headers         # Cloudflare Pages 安全响应头（含严格的 CSP，style-src 'self' 不允许内联样式）
-├── .gitignore       # 忽略 .wrangler/、.dev.vars、node_modules/、系统文件
-└── README.md        # 面向用户的说明（中文）
-```
+| 文件 | 作用 |
+| --- | --- |
+| `index.html` | 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明 |
+| `styles.css` | 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色 |
+| `calculator.js` | 所有纯计算逻辑（约 486 行） |
+| `app.js` | UI 控制器（约 684 行） |
+| `tests/test-calculator.js` | 计算函数测试（129 项），导入 calculator.js |
+| `tests/test-ui-state.js` | 状态恢复、无障碍标记与结果展示测试（36 项），用 vm 隔离执行 app.js |
+| `wrangler.toml` | Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "." |
+| `_headers` | Cloudflare Pages 安全响应头（含严格的 CSP，style-src 'self' 不允许内联样式） |
+| `.gitignore` | 忽略 .wrangler/、.dev.vars、node_modules/、系统文件 |
+| `README.md` | 面向用户的说明（中文） |
 
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
@@ -67,7 +63,32 @@
 9. `copyResults()`（剪贴板 API 失败时降级为 `window.prompt`）
 10. `bindEvents()` + 文件末尾的初始化调用（单次 `calculate()`）
 
-## 计算公式（修改逻辑时勿改错）
+## 运行与构建
+
+没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
+
+- 运行计算测试：`node tests/test-calculator.js`（应输出 `129 passed, 0 failed`）
+- 运行状态测试：`node tests/test-ui-state.js`（应输出 `36 passed, 0 failed`）
+- 语法检查：`node --check calculator.js && node --check app.js && node --check tests/test-calculator.js && node --check tests/test-ui-state.js`
+- 本地预览（任选其一）：
+  - 直接双击打开 `index.html`；
+  - `python -m http.server 8000` 后访问 `http://localhost:8000`；
+  - `npx wrangler pages dev .`（模拟 Cloudflare Pages 环境，会应用 `_headers`）。
+
+## 测试
+
+验证改动的方式：
+
+1. `node tests/test-calculator.js`（129 passed, 0 failed）、`node tests/test-ui-state.js`（36 passed, 0 failed）和全部 JS 文件 `node --check` 通过；
+2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
+3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
+4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
+5. 刷新页面确认状态（含各模式各自的样本）从 localStorage 恢复；点「恢复默认」确认重置；
+6. 打开浏览器控制台确认无报错、无 CSP 违规。
+
+## 代码组织与风格约定
+
+### 计算公式（修改逻辑时勿改错）
 
 展示理论体积，不做移液取整——用户自行判断实际移液量。
 
@@ -94,37 +115,13 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 ```
 
 公共规则：
-- 预计损耗率（`lossMargin`，0%–50%）使用严格补偿公式：`scaleFactor = 1/(1−lossMargin/100)`
-  保证 `配制量 × (1 − 损耗率) = 目标量`（例如 10% 损耗 → 1/0.9 ≈ 1.111×）
+
+- 预计损耗率（`lossMargin`，0%–50%）使用严格补偿公式：`scaleFactor = 1/(1−lossMargin/100)`，保证 `配制量 × (1 − 损耗率) = 目标量`（例如 10% 损耗 → 1/0.9 ≈ 1.111×）
 - 样品名称仅用于显示，不影响任何数值计算（`isSampleNumericallyValid` 用于参考值）
 - 预稀释后：`sampleVolume` = 稀释液移液体积，`originalConsumed` = 原液实际消耗量
 - 数值上 1 mg/mL = 1 µg/µL
 
-## 构建与运行命令
-
-没有构建步骤。测试从 calculator.js 直接导入生产代码（不复制算法）：
-
-- 运行计算测试：`node tests/test-calculator.js`（应输出 `129 passed, 0 failed`）
-- 运行状态测试：`node tests/test-ui-state.js`（应输出 `36 passed, 0 failed`）
-- 语法检查：`node --check calculator.js && node --check app.js && node --check tests/test-calculator.js && node --check tests/test-ui-state.js`
-- 本地预览（任选其一）：
-  - 直接双击打开 `index.html`；
-  - `python -m http.server 8000` 后访问 `http://localhost:8000`；
-  - `npx wrangler pages dev .`（模拟 Cloudflare Pages 环境，会应用 `_headers`）。
-- 部署：
-  - 推荐 Cloudflare Pages 连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`）；
-  - 或命令行：`npx wrangler login` 一次，然后 `npx wrangler pages deploy . --project-name wb-balancer`（项目名须与 `wrangler.toml` 一致）。
-
-## 验证改动的方式
-
-1. `node tests/test-calculator.js`（129 passed, 0 failed）、`node tests/test-ui-state.js`（36 passed, 0 failed）和全部 JS 文件 `node --check` 通过；
-2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
-3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
-4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
-5. 刷新页面确认状态（含各模式各自的样本）从 localStorage 恢复；点"恢复默认"确认重置；
-6. 打开浏览器控制台确认无报错、无 CSP 违规。
-
-## 代码风格与约定
+### 代码风格
 
 - 文件顶部 `'use strict';`；函数声明式（`function name()`），无类、无模块系统；现状使用 `var`，新增代码保持与周围一致。
 - 纯计算逻辑（公式、校验）写入 `calculator.js`；展示逻辑（格式化、DOM 操作、localStorage）写入 `app.js`。计算函数必须是纯函数，不访问 DOM。
@@ -137,12 +134,21 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 - 新增样本相关字段时，需同步：`blankSamples()`、`renderSampleRows()` 列显隐、`updateSampleFromInput()`、粘贴导入的列映射（`pasteData()`）、`copyResults()`。新增结果列时只需在 `RESULT_COLUMNS` 增加一项（表格与复制自动生效）。新增设置项时需同步：`getDefaultState()`、`syncControlsFromState()`（显隐 + 回写值）、`readSettings()`、`bindEvents()` 的监听。
 - `calculator.js` 新增函数时，同步更新 `tests/test-calculator.js` 和 `calculator.js` 末尾的 `module.exports`。
 
-## 安全注意事项
+## 部署
 
-- 这是零信任边界的纯静态应用：不引入网络请求（CSP 中 `connect-src 'none'`），改动时**不要**添加任何外链脚本、字体、统计或 CDN 资源——`_headers` 中的 CSP（`script-src 'self'; style-src 'self'`）会阻止它们，且违背"数据不出浏览器"的隐私承诺。
+- 推荐 Cloudflare Pages 连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`）；
+- 或命令行：`npx wrangler login` 一次，然后 `npx wrangler pages deploy . --project-name wb-balancer`（项目名须与 `wrangler.toml` 一致）。
+
+## 安全与数据注意事项
+
+- 这是零信任边界的纯静态应用：不引入网络请求（CSP 中 `connect-src 'none'`），改动时**不要**添加任何外链脚本、字体、统计或 CDN 资源——`_headers` 中的 CSP（`script-src 'self'; style-src 'self'`）会阻止它们，且违背「数据不出浏览器」的隐私承诺。
 - 若新增内联脚本或内联样式，必须先调整 CSP，尽量不要这样做。
 - 用户输入渲染进 HTML 前必须转义。
 - 不要读取或提交 `.dev.vars` 等本地机密文件（已在 `.gitignore` 中）。
+
+## 标志维护约定
+
+`YDchen Tools` 文字页眉是受保护的品牌区域，必须保持原结构、尺寸与样式；项目专属统一标志（`project-mark.svg`）仅用于 favicon 或现有非页眉标志，不得改变页面布局。
 
 ---
 
@@ -154,8 +160,3 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 > - README.md 面向**人类用户**（功能介绍、运行方法、部署步骤），AGENTS.md 面向 **AI 代理**（架构、代码组织、测试策略、开发约定）
 > - 两份文件**不可互相替代**，各有所众
 > - 项目的实际文件结构必须与 AGENTS.md 中列出的文件清单保持一致
-
-
-## 标志维护约定
-
-`YDchen Tools` 文字页眉是受保护的品牌区域，必须保持原结构、尺寸与样式；项目专属统一标志仅用于 favicon 或现有非页眉标志，不得改变页面布局。
