@@ -32,14 +32,17 @@
 | --- | --- |
 | `index.html` | 页面结构：三个步骤卡片（参数设置 / 样本录入 / 配平结果）+ 使用说明 |
 | `styles.css` | 全部样式：CSS 变量主题（仅 light）、卡片布局、状态色 |
-| `calculator.js` | 所有纯计算逻辑（约 486 行） |
-| `app.js` | UI 控制器（约 684 行） |
+| `calculator.js` | 所有纯计算逻辑 |
+| `app.js` | UI 控制器 |
 | `tests/test-calculator.js` | 计算函数测试（129 项），导入 calculator.js |
 | `tests/test-ui-state.js` | 状态恢复、无障碍标记与结果展示测试（36 项），用 vm 隔离执行 app.js |
-| `wrangler.toml` | Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "." |
+| `wrangler.toml` | Cloudflare Pages 配置：name = "wb-balancer"，pages_build_output_dir = "."，compatibility_date = "2026-07-28" |
 | `_headers` | Cloudflare Pages 安全响应头（含严格的 CSP，style-src 'self' 不允许内联样式） |
 | `.gitignore` | 忽略 .wrangler/、.dev.vars、node_modules/、系统文件 |
 | `README.md` | 面向用户的说明（中文） |
+| `AGENTS.md` | 本文件（面向 AI 代理） |
+| `assets/project-mark.svg` | 项目专属标志（favicon） |
+| `LICENSE` | MIT 许可证 |
 
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
@@ -148,7 +151,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 ## 标志维护约定
 
-`YDchen Tools` 文字页眉是受保护的品牌区域，必须保持原结构、尺寸与样式；项目专属统一标志（`project-mark.svg`）仅用于 favicon 或现有非页眉标志，不得改变页面布局。
+`YDchen Tools` 文字页眉是受保护的品牌区域，必须保持原结构、尺寸与样式；项目专属统一标志（`assets/project-mark.svg`）仅用于 favicon 或现有非页眉标志，不得改变页面布局。
 
 ---
 
@@ -158,5 +161,5 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 >
 > - **修改代码后必须同步更新本 AGENTS.md 与 README.md** — 新增文件、架构变更、功能增删、部署方式变更都需要在两份文档中体现
 > - README.md 面向**人类用户**（功能介绍、运行方法、部署步骤），AGENTS.md 面向 **AI 代理**（架构、代码组织、测试策略、开发约定）
-> - 两份文件**不可互相替代**，各有所众
+> - 两份文件**不可互相替代**，各有所长
 > - 项目的实际文件结构必须与 AGENTS.md 中列出的文件清单保持一致
