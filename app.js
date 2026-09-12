@@ -338,8 +338,8 @@ function syncControlsFromState() {
   elements.bufferFactorField.classList.toggle('hidden', !isPrep);
   // 损耗余量：equalize 模式隐藏，其余显示
   elements.lossMarginField.classList.toggle('hidden', isEqualize);
-  elements.loadingBufferFactor.value = state.loadingBufferFactor;
-  elements.lossMargin.value = state.lossMargin;
+  elements.loadingBufferFactor.value = Number.isFinite(state.loadingBufferFactor) ? state.loadingBufferFactor : '';
+  elements.lossMargin.value = Number.isFinite(state.lossMargin) ? state.lossMargin : '';
   elements.modeDescription.textContent = getModeDescription();
   elements.formulaNote.innerHTML = getFormulaNote();
 }
@@ -388,8 +388,9 @@ function readSettings() {
   state.targetMass = toFiniteNumber(elements.targetMass.value) || 0;
   state.finalVolume = toFiniteNumber(elements.finalVolume.value) || 0;
   state.currentVolume = toFiniteNumber(elements.currentVolume.value) || 0;
-  state.loadingBufferFactor = toFiniteNumber(elements.loadingBufferFactor.value) || 5;
-  state.lossMargin = toFiniteNumber(elements.lossMargin.value) || 0;
+  // 严格解析：非法输入保留 null 交给 calculator 报「无效」错误，不静默回退为默认值
+  state.loadingBufferFactor = toFiniteNumber(elements.loadingBufferFactor.value);
+  state.lossMargin = toFiniteNumber(elements.lossMargin.value);
 }
 
 // ---------- 计算（委托给 calculator.js）----------
@@ -462,7 +463,7 @@ function renderResults(result) {
   } else {
     var mInfo2 = state.lossMargin > 0 ? '（预计损耗 ' + state.lossMargin + '%）' : '';
     item('目标蛋白量', state.targetMass > 0 ? formatNumber(state.targetMass, 2) + ' µg' : '—');
-    item('Buffer 倍数', (state.loadingBufferFactor || 5) + '×');
+    item('Buffer 倍数', Number.isFinite(state.loadingBufferFactor) ? state.loadingBufferFactor + '×' : '—');
     item('最终体积' + mInfo2, formatVolume(summary.totalWithMargin));
   }
   item('有效样本', validCount + ' / ' + results.length);

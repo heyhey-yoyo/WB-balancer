@@ -255,3 +255,9 @@ td { border-color: rgba(36,34,31,.1); }
   .main-grid { width: 100%; padding: 0; margin: 0; }
   .main-grid .card { padding: 12px; border: 1px solid #ccc; box-shadow: none; }
 }
+
+.table-wrap{background:linear-gradient(to right,#fbf8f2 30%,transparent),linear-gradient(to left,#fbf8f2 30%,transparent),radial-gradient(farthest-side at 0 50%,rgba(36,34,31,.24),transparent),radial-gradient(farthest-side at 100% 50%,rgba(36,34,31,.24),transparent);background-position:left center,right center,left center,right center;background-repeat:no-repeat;background-size:36px 100%,36px 100%,12px 100%,12px 100%;background-attachment:local,local,scroll,scroll}
+
+.main-grid td.loading-col,.main-grid th.loading-col{background:#f0ded4;color:#8a4028;font-weight:700}
+@media(max-width:480px){.main-grid td input{min-height:40px;font-size:14px;min-width:96px}.main-grid td{padding-top:10px;padding-bottom:10px}}
+@media print{.table-wrap{background:none}}

@@ -130,6 +130,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 - 纯计算逻辑（公式、校验）写入 `calculator.js`；展示逻辑（格式化、DOM 操作、localStorage）写入 `app.js`。计算函数必须是纯函数，不访问 DOM。
 - `saveState()` 对 `state` 做浅拷贝后删除拷贝中的 `samples`（它是 `samplesByMode[mode]` 的引用，避免重复存储），原对象不受影响。
 - 数值处理统一走 `toFiniteNumber()`（空值返回 `null`）；显示格式化统一走 `formatVolume()` / `formatConcentration()` / `formatNumber()`。
+- `readSettings()` 严格解析 `lossMargin` / `loadingBufferFactor`：非法输入保留 `null` 交给 calculator 报「无效」错误，不静默回退为默认值；`syncControlsFromState()` 回写时对 `null` 显示为空串。
 - 比较浮点数时使用 `1e-9` 容差，不要改成严格相等。
 - 动态拼接 HTML 时，用户输入必须经过 `escapeHtml()` 转义。
 - 面向用户的文本（按钮、提示、校验消息）使用中文；复制结果的表头也是中文。
@@ -154,6 +155,10 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 `YDchen Tools` 文字页眉是受保护的品牌区域，必须保持原结构、尺寸与样式；项目专属统一标志（`assets/project-mark.svg`）仅用于 favicon 或现有非页眉标志，不得改变页面布局。
 
 ---
+
+## 2026-09-13 维护补充
+
+加载液列突出显示不改变任何配液计算；手机输入仍在表格内部横向滚动，打印时移除滚动阴影。
 
 ## AI 维护提醒
 
