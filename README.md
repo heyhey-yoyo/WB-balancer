@@ -114,6 +114,10 @@ node tests/test-calculator.js
 node tests/test-ui-state.js
 ```
 
+## 页眉滚动行为更新
+
+品牌页眉位于文档顶部，随页面正常滚走，不使用 fixed/sticky 吸顶；字体、字号、标志尺寸和三类排布基准保持一致。 正常 Loading 用量列采用浅米灰底与深色文字，通过字重区分；红色和黄色仅用于实际异常或警告，计算公式不变。
+
 ## AI 维护提醒
 
 > **⚠️ 任何修改此项目的 AI 代理都必须同步更新本文件与 AGENTS.md。**
