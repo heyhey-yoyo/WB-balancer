@@ -115,8 +115,14 @@ function resultCopyRows(mode, results) {
 // 单元格辅助（每模式通用部分）
 function concCell(r) { return formatConcentration(r.concentration); }
 function concText(r) { return formatNumber(r.concentration, 3); }
-function loadingVolCell(r) { return formatVolume(r.loadingVolume); }
-function loadingVolText(r) { return formatNumber(r.loadingVolume, 2); }
+function loadingVolCell(r) {
+  return r.loadingVolume > 0 && r.loadingVolume < 0.005
+    ? r.loadingVolume.toPrecision(3) + ' µL' : formatVolume(r.loadingVolume);
+}
+function loadingVolText(r) {
+  return r.loadingVolume > 0 && r.loadingVolume < 0.005
+    ? r.loadingVolume.toPrecision(3) : formatNumber(r.loadingVolume, 2);
+}
 function finalVolCell(r) { return formatVolume(r.finalVolume); }
 function finalVolText(r) { return formatNumber(r.finalVolume, 2); }
 function nameText(r) { return r.name; }

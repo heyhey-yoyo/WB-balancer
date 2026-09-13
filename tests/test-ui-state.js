@@ -152,6 +152,17 @@ var xss = { name: '<img src=x onerror=alert(1)>', concentration: '2', sampleVolu
 var xssHtml = context.resultTableHtml('perWell', [xss]);
 assert(xssHtml.indexOf('<img') === -1 && xssHtml.indexOf('&lt;img') >= 0, 'result table escapes user names');
 
+// 截图回归：30 µL 的最低参考值不应显示 0.00 µL 却报告小体积警告。
+var screenshotCase = calc.calculateRebalance([
+  { name: 'Ctrl-1', imageIntensity: 1 }, { name: 'Treat-A', imageIntensity: 0.72 }, { name: 'Treat-B', imageIntensity: 1.18 }
+], { finalVolume: 30, lossMargin: 0 });
+var screenshotHtml = context.resultTableHtml('rebalance', screenshotCase.results);
+assert(screenshotHtml.includes('0.00 µL') && !screenshotHtml.includes('status-warning'), '30 µL example has zero Loading without false warning');
+var tinyLoading = calc.calculatePerWell([{ name: 'Tiny', concentration: 1 }], { targetMass: 29.999, finalVolume: 30, lossMargin: 0 }).results;
+assert(context.resultTableHtml('perWell', tinyLoading).includes('0.00100 µL'), 'real tiny positive Loading is not displayed as zero');
+assert(context.resultTableHtml('perWell', tinyLoading).includes('status-warning'), 'real tiny positive Loading retains warning');
+assert(context.resultCopyRows('perWell', tinyLoading)[0][3] === '0.00100', 'copy retains tiny positive Loading');
+
 // 发布入口必须让旧缓存失效，并在以后复用前再验证。
 var crypto = require('crypto');
 var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');

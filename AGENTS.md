@@ -47,7 +47,7 @@
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
 1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleNumericallyValid()`（仅看数字字段，用于参考值计算）/ `isSampleComplete()`（含名称，目前仅导出未在 UI 使用）
-2. 各模式共用辅助：`createMessages()`（收集消息并决定 severity）/ `multiplyFinite()`（理论体积 × 放大系数）/ `scaledTotal()`（最终体积 × 放大系数）/ `applyPreDilution()`（预稀释建议）/ `warnMissingName()` / `warnSmallLoading()` / `errorIfNotEnoughAvailable()` / `warnPreDilution()` / `allPositive()`（范围错误检测）
+2. 各模式共用辅助：`createMessages()`（收集消息并决定 severity）/ `multiplyFinite()`（理论体积 × 放大系数）/ `scaledTotal()`（最终体积 × 放大系数）/ `applyPreDilution()`（预稀释建议）/ `warnMissingName()` / `normalizeZeroVolume()`（1e-9 µL 内的余量归零）/ `warnSmallLoading()` / `errorIfNotEnoughAvailable()` / `warnPreDilution()` / `allPositive()`（范围错误检测）
 3. 各模式计算：`calculateEqualize()` / `calculatePerWell()` / `calculateRebalance()` / `calculatePrep()`——统一返回 `{ results, reference, summary }`
 4. 计算链：理论体积 → 损耗余量同比放大 → 预稀释检查 → Loading/补液。不做移液取整。
 5. 预稀释场景中：`originalConsumed` 记录原液消耗量（用于检查库存），`sampleVolume` 为稀释后移液体积
@@ -132,6 +132,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 - 预计损耗率（`lossMargin`，0%–50%）使用严格补偿公式：`scaleFactor = 1/(1−lossMargin/100)`，保证 `配制量 × (1 − 损耗率) = 目标量`（例如 10% 损耗 → 1/0.9 ≈ 1.111×）
 - `finalVolume` 是损耗后的目标上样体积，`totalWithMargin` 是补偿后的配制总体积；ImageJ 模式结果可能高于目标体积，不得在 README 中承诺“永不超过目标上样体积”。
+- 三种 1× Loading 模式的计算余量通过 `normalizeZeroVolume()` 按 1e-9 µL 容差归零；零表示无需添加，仅真正的正体积小于 0.5 µL 才警告。不得用两位显示精度决定是否为零；0 < Loading < 0.005 µL 的表格和复制均用三位有效数字。回归覆盖 30 µL/0.72 的参考样本、并列最小值、归一化与损耗模式、0/0.001/0.49/0.5/0.51 µL 和负体积。
 - 样品名称仅用于显示，不影响任何数值计算（`isSampleNumericallyValid` 用于参考值）
 - 预稀释后：`sampleVolume` = 稀释液移液体积，`originalConsumed` = 原液实际消耗量
 - 数值上 1 mg/mL = 1 µg/µL

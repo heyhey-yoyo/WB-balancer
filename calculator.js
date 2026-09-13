@@ -117,7 +117,12 @@ function warnMissingName(sample, warn) {
   if (!sample.name || !sample.name.trim()) warn('未填写样本名');
 }
 
-/** Loading 体积 > 0 但小于最小可靠体积时警告；noun 决定文案前缀。 */
+/** 按体积比较的 1e-9 µL 容差消除零附近的浮点余量，不作移液取整。 */
+function normalizeZeroVolume(volume) {
+  return Number.isFinite(volume) && Math.abs(volume) <= 1e-9 ? 0 : volume;
+}
+
+/** Loading 体积 > 0 但小于最小可靠体积时警告；零表示无需添加。 */
 function warnSmallLoading(loading, warn, noun) {
   if (Number.isFinite(loading) && loading > 0 && loading < MIN_RELIABLE_VOLUME) warn(noun + ' < 0.5 µL');
 }
@@ -164,7 +169,7 @@ function calculateEqualize(samples, currentVolume, useIndividualVolume) {
       : (Number.isFinite(currentVolume) && currentVolume > 0 ? currentVolume : 0);
     var totalProtein = conc > 0 && vol > 0 ? conc * vol : null;
     var finalVol = totalProtein !== null && targetConc !== null && targetConc > 0 ? totalProtein / targetConc : null;
-    var loading = finalVol !== null && vol >= 0 ? Math.max(0, finalVol - vol) : null;
+    var loading = normalizeZeroVolume(finalVol !== null && vol >= 0 ? Math.max(0, finalVol - vol) : null);
 
     var c = createMessages('可以配平');
 
@@ -234,7 +239,7 @@ function calculatePerWell(samples, settings) {
     var dilution = dilutionStep.dilution;
     var sampleVol = dilutionStep.volume;
     var originalConsumed = sampleVolBase;
-    var loading = Number.isFinite(sampleVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - sampleVol : null;
+    var loading = normalizeZeroVolume(Number.isFinite(sampleVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - sampleVol : null);
 
     var c = createMessages('可以配平');
 
@@ -350,7 +355,7 @@ function calculateRebalance(samples, settings) {
     var dilution = dilutionStep.dilution;
     var pipettingVol = dilutionStep.volume;
     var originalConsumed = sampleVol;
-    var loading = Number.isFinite(pipettingVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - pipettingVol : null;
+    var loading = normalizeZeroVolume(Number.isFinite(pipettingVol) && Number.isFinite(totalWithMargin) && totalWithMargin > 0 ? totalWithMargin - pipettingVol : null);
 
     var c = createMessages('可以配平');
 
@@ -478,6 +483,7 @@ function calculatePrep(samples, settings) {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     toFiniteNumber: toFiniteNumber,
+    normalizeZeroVolume: normalizeZeroVolume,
     suggestPreDilution: suggestPreDilution,
     validateLossMargin: validateLossMargin,
     lossScaleFactor: lossScaleFactor,

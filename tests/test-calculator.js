@@ -530,5 +530,31 @@ assert(r.results[0].messages.some(function (m) { return m.indexOf('超出可处�
 var mixedPrevious = calc.calculateRebalance([{ name: 'A', imageIntensity: 100, prevVolume: '2' }, { name: 'B', imageIntensity: 200, prevVolume: '-1' }], { finalVolume: 20, lossMargin: 0 });
 assert(mixedPrevious.results.every(function (item) { return item.severity === 'error'; }), 'positive plus negative must block entire comparison');
 
+// 参考样本无需补加 Loading；不能把浮点余量当成需要移取的微量。
+[0, 10, 50].forEach(function (loss) {
+  ['', '20'].forEach(function (previous) {
+    var checked = calc.calculateRebalance([
+      { name: 'Ctrl-1', imageIntensity: 1, prevVolume: previous },
+      { name: 'Treat-A', imageIntensity: 0.72, prevVolume: previous },
+      { name: 'Treat-B', imageIntensity: 1.18, prevVolume: previous },
+      { name: 'Tied', imageIntensity: 0.72, prevVolume: previous }
+    ], { finalVolume: 30, lossMargin: loss });
+    [1, 3].forEach(function (index) {
+      assert(checked.results[index].loadingVolume === 0, 'reference and tied minimum Loading exactly zero: ' + loss + '/' + previous);
+      assert(checked.results[index].severity === 'ok', 'zero Loading does not warn: ' + loss + '/' + previous);
+    });
+  });
+});
+var equalZero = calc.calculateEqualize([{ name: 'Reference', concentration: 0.72 }], 30, false);
+assert(equalZero.results[0].loadingVolume === 0 && equalZero.results[0].severity === 'ok', 'equalize minimum floating remainder is zero and OK');
+[0, 0.001, 0.49, 0.5, 0.51, -0.1].forEach(function (loading) {
+  var checked = calc.calculatePerWell([{ name: 'Boundary', concentration: 1 }], { targetMass: 30 - loading, finalVolume: 30, lossMargin: 0 }).results[0];
+  assert(checked.severity === (loading < 0 ? 'error' : loading > 0 && loading < 0.5 ? 'warning' : 'ok'), 'Loading boundary classification: ' + loading);
+});
+assert(calc.normalizeZeroVolume(3.552713678800501e-15) === 0, 'positive floating remainder becomes zero');
+assert(calc.normalizeZeroVolume(-3.552713678800501e-15) === 0, 'negative floating remainder becomes zero');
+assert(calc.normalizeZeroVolume(1e-8) === 1e-8, 'positive amount above tolerance remains positive');
+assert(calc.normalizeZeroVolume(null) === null, 'missing volume remains missing');
+
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 if (failed > 0) process.exit(1);
