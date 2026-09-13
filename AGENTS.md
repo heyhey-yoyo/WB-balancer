@@ -62,7 +62,7 @@
 5. `syncControlsFromState()`：按当前模式显示/隐藏对应设置项，prep 模式下显示目标蛋白量和最终体积
 6. `calculate()`：读取设置 → 委托对应 calculator 函数 → `renderResults()` + `saveState()`
 7. 渲染：`renderSampleRows()`（按模式显示不同列）、`renderResults()`（统计卡片 + 提示条 + 结果表格）
-8. `pasteData()`：按模式列映射（equalize: name/concentration/availableVolume；perWell: name/concentration/availableVolume；rebalance: name/imageIntensity/availableVolume/prevVolume；prep: name/concentration/availableVolume）
+8. `pasteData()`：按模式列映射（equalize: name/concentration/availableVolume/individualVolume（第四列可选，仅逐样本体积模式使用）；perWell: name/concentration/availableVolume；rebalance: name/imageIntensity/availableVolume/prevVolume；prep: name/concentration/availableVolume）
 9. `copyResults()`（剪贴板 API 失败时降级为 `window.prompt`）
 10. `bindEvents()` + 文件末尾的初始化调用（单次 `calculate()`）
 
@@ -98,9 +98,11 @@ node tests/test-ui-state.js
 
 ## 代码组织与风格约定
 
+对外版本以 GitHub Release 为准；项目没有独立的应用版本常量，发布不更改本地存储格式。
+
 ### 计算公式（修改逻辑时勿改错）
 
-展示理论体积，不做移液取整——用户自行判断实际移液量。
+展示理论体积，不按移液器步进取整；预稀释建议 `adjustedVolume` 保留到 0.001 µL，界面另做显示格式化。用户自行判断实际移液量。
 
 ```text
 equalize：目标浓度 = min(所有数值有效样本浓度)；总蛋白量 = 浓度 × 体积；
@@ -110,23 +112,26 @@ perWell：scaleFactor = 1 / (1 − 预计损耗率)；
          样品体积 = 目标蛋白量 ÷ 浓度 × scaleFactor；
          预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
          1× Loading = 上样体积 × scaleFactor − 样品体积；
-         校验：样品体积 × 浓度 × (1 − 损耗率) ≈ 目标蛋白量
+         校验：originalConsumed × 原液浓度 × (1 − 损耗率) = 目标蛋白量；
+         或 sampleVolume × (原液浓度 ÷ dilution.factor) × (1 − 损耗率) ≈ 目标蛋白量（无预稀释时倍数取 1）
 rebalance：
   - 无上轮体积：参考值 = min(ImageJ 值)；样品体积 = 总上样体积 × scaleFactor × (参考值 ÷ ImageJ 值)
   - 有上轮体积：相对浓度 = ImageJ ÷ 上轮体积；参考值 = min(相对浓度)；
     样品体积 = 总上样体积 × scaleFactor × (参考值 ÷ 当前相对浓度)
-  - 上轮体积必须全部填写或全部留空，部分填写 → error
+  - 数值有效样本的上轮体积必须全部填写或全部留空，部分填写 → error；任何样本非空上轮体积必须为正的有限数字，否则全次配平 error，reference 和取样量为空，禁止复制
 prep：scaleFactor = 1 / (1 − 预计损耗率)；
       样品体积 = 目标蛋白量 ÷ 浓度 × scaleFactor；
       预稀释（体积 < 0.5 µL 时）→ 样品体积 = 理论 × 倍数；
       Loading Buffer = 终体积 × scaleFactor ÷ Buffer 倍数；
       补液 = 终体积 × scaleFactor − 样品体积 − Loading Buffer；
-      校验：样品体积 × 浓度 × (1 − 损耗率) ≈ 目标蛋白量
+      校验：originalConsumed × 原液浓度 × (1 − 损耗率) = 目标蛋白量；
+         或 sampleVolume × (原液浓度 ÷ dilution.factor) × (1 − 损耗率) ≈ 目标蛋白量（无预稀释时倍数取 1）
 ```
 
 公共规则：
 
 - 预计损耗率（`lossMargin`，0%–50%）使用严格补偿公式：`scaleFactor = 1/(1−lossMargin/100)`，保证 `配制量 × (1 − 损耗率) = 目标量`（例如 10% 损耗 → 1/0.9 ≈ 1.111×）
+- `finalVolume` 是损耗后的目标上样体积，`totalWithMargin` 是补偿后的配制总体积；ImageJ 模式结果可能高于目标体积，不得在 README 中承诺“永不超过目标上样体积”。
 - 样品名称仅用于显示，不影响任何数值计算（`isSampleNumericallyValid` 用于参考值）
 - 预稀释后：`sampleVolume` = 稀释液移液体积，`originalConsumed` = 原液实际消耗量
 - 数值上 1 mg/mL = 1 µg/µL

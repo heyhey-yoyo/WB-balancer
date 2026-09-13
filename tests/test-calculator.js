@@ -514,5 +514,21 @@ assert(r.results[0].severity === 'error', 'prep overflow → error');
 assert(r.results[0].messages.some(function (m) { return m.indexOf('超出可处理范围') >= 0; }), 'prep overflow → range message');
 
 // ============================================================
+// 上轮体积：空白可选，非空必须有限且为正；错误不能退回未归一化模式。
+[-1, 0, 'abc', 'Infinity', '1e309'].forEach(function (value) {
+  var checked = calc.calculateRebalance([
+    { name: 'A', imageIntensity: '100', prevVolume: value },
+    { name: 'B', imageIntensity: '200', prevVolume: value }
+  ], { finalVolume: 20, lossMargin: 0 });
+  assert(checked.results.every(function (item) { return item.severity === 'error' && item.sampleVolume === null; }), 'invalid previous volume blocks all results: ' + value);
+  assertNull(checked.reference, 'invalid previous volume has no reference: ' + value);
+});
+['', '   ', null, undefined].forEach(function (value) {
+  var checked = calc.calculateRebalance([{ name: 'A', imageIntensity: 100, prevVolume: value }], { finalVolume: 20, lossMargin: 0 });
+  assert(checked.results[0].severity === 'ok' && !checked.summary.useNormalized, 'blank previous volume remains optional');
+});
+var mixedPrevious = calc.calculateRebalance([{ name: 'A', imageIntensity: 100, prevVolume: '2' }, { name: 'B', imageIntensity: 200, prevVolume: '-1' }], { finalVolume: 20, lossMargin: 0 });
+assert(mixedPrevious.results.every(function (item) { return item.severity === 'error'; }), 'positive plus negative must block entire comparison');
+
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 if (failed > 0) process.exit(1);

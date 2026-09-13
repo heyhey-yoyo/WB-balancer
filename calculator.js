@@ -297,12 +297,17 @@ function calculateRebalance(samples, settings) {
 
   var validSamples = samples.filter(function (s) { return isSampleNumericallyValid(s, 'rebalance', false); });
 
+  var invalidPrev = samples.some(function (s) {
+    var supplied = s.prevVolume !== null && s.prevVolume !== undefined && String(s.prevVolume).trim() !== '';
+    var pv = toFiniteNumber(s.prevVolume);
+    return supplied && (!Number.isFinite(pv) || pv <= 0);
+  });
   var validWithPrev = validSamples.filter(function (s) {
     var pv = toFiniteNumber(s.prevVolume);
     return Number.isFinite(pv) && pv > 0;
   });
-  var partialPrevError = null;
-  if (validWithPrev.length > 0 && validWithPrev.length < validSamples.length) {
+  var partialPrevError = invalidPrev ? '上轮取样体积无效：填写时必须是大于 0 的有限数字' : null;
+  if (!partialPrevError && validWithPrev.length > 0 && validWithPrev.length < validSamples.length) {
     partialPrevError = '上轮取样体积必须全部填写或全部留空，不允许部分填写';
   }
 

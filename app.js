@@ -293,18 +293,18 @@ function getFormulaNote(summary) {
     return '<strong>变性后重新配平：</strong>目标浓度 = 所有样本最低浓度；总蛋白量 = 浓度 × 体积；最终体积 = 总蛋白量 ÷ 目标浓度；需加 1× Loading = 最终体积 − 当前体积。最低浓度样本无需加入 Loading。';
   }
   if (mode === 'perWell') {
-    return '<strong>上样配平：</strong>' + lossNote + '样品体积 = 每孔目标蛋白量 ÷ 浓度 × 补偿系数；1× Loading = 统一上样体积 × 补偿系数 − 样品体积。配制量 × (1−预计损耗率) = 目标量。体积 < 0.5 µL 时建议预稀释。';
+    return '<strong>上样配平：</strong>' + lossNote + '样品体积 = 每孔目标蛋白量 ÷ 浓度 × 补偿系数；1× Loading = 统一上样体积 × 补偿系数 − 样品体积。原液消耗量 × 原液浓度 × (1−预计损耗率) = 目标蛋白量。体积 < 0.5 µL 时建议预稀释；此时结果为稀释液移液体积，Loading 按此体积补足，不能再乘原液浓度核算蛋白量。';
   }
   if (mode === 'rebalance') {
     if (summary && summary.partialPrevError) {
-      return '<strong>ImageJ 配平：</strong>上轮取样体积必须全部填写或全部留空，不允许部分填写。';
+      return '<strong>ImageJ 配平：</strong>' + escapeHtml(summary.partialPrevError) + '。';
     }
     if (summary && summary.useNormalized) {
       return '<strong>ImageJ 配平：</strong>' + lossNote + '相对浓度 = ImageJ ÷ 上轮取样体积；样品体积 = 补偿后总体积 × 最低相对浓度 ÷ 当前相对浓度。';
     }
     return '<strong>ImageJ 配平：</strong>' + lossNote + '样品体积 = 补偿后总体积 × 最低 ImageJ ÷ 当前 ImageJ。';
   }
-  return '<strong>未变性样品配平：</strong>' + lossNote + '样品体积 = 目标蛋白量 ÷ 浓度 × 补偿系数；Loading Buffer = 补偿后总体积 ÷ Buffer 倍数；补液 = 补偿后总体积 − 样品 − Loading Buffer。配制量 × (1−预计损耗率) = 目标量。';
+  return '<strong>未变性样品配平：</strong>' + lossNote + '样品体积 = 目标蛋白量 ÷ 浓度 × 补偿系数；Loading Buffer = 补偿后总体积 ÷ Buffer 倍数；补液 = 补偿后总体积 − 样品 − Loading Buffer。原液消耗量 × 原液浓度 × (1−预计损耗率) = 目标蛋白量。预稀释后样品列为稀释液移液体积，补液据此扣除。';
 }
 
 // ---------- 控件同步 ----------
