@@ -94,7 +94,7 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 npx wrangler pages deploy . --project-name wb-balancer
 ```
 
-页面和资源会在复用缓存前向服务器确认是否更新；页面按内容标识引用样式与计算脚本，避免新页面混用旧资源缓存。
+页面按内容标识引用样式与计算脚本；发布时同步更新资源标识，避免新页面混用旧资源缓存。
 
 ## 责任边界
 
