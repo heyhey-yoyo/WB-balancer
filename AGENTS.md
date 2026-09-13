@@ -169,6 +169,8 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 - 推荐 Cloudflare Pages 连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`）；
 - 或命令行：`npx wrangler login` 一次，然后 `npx wrangler pages deploy . --project-name wb-balancer`（项目名须与 `wrangler.toml` 一致）。
 
+发布缓存约定：`_headers` 对全站设置 `Cache-Control: no-cache`；`index.html` 引用的 `styles.css`、`calculator.js`、`app.js` 携带各文件按 CRLF→LF 归一后的 SHA-256 前 12 位作为 `v` 查询标识。修改这三个文件时同步刷新对应标识，首次访问新 URL 可避开旧版本仍处于有效期的浏览器或边缘缓存。状态测试核对三个内容标识和缓存响应头；上线后还需核对实际响应头与资源摘要。
+
 ## 安全与数据注意事项
 
 - 这是零信任边界的纯静态应用：不引入网络请求（CSP 中 `connect-src 'none'`），改动时**不要**添加任何外链脚本、字体、统计或 CDN 资源——`_headers` 中的 CSP（`script-src 'self'; style-src 'self'`）会阻止它们，且违背「数据不出浏览器」的隐私承诺。

@@ -152,5 +152,15 @@ var xss = { name: '<img src=x onerror=alert(1)>', concentration: '2', sampleVolu
 var xssHtml = context.resultTableHtml('perWell', [xss]);
 assert(xssHtml.indexOf('<img') === -1 && xssHtml.indexOf('&lt;img') >= 0, 'result table escapes user names');
 
+// 发布入口必须让旧缓存失效，并在以后复用前再验证。
+var crypto = require('crypto');
+var html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+['styles.css', 'calculator.js', 'app.js'].forEach(function (file) {
+  var source = fs.readFileSync(path.join(__dirname, '..', file), 'utf8').replace(/\r\n/g, '\n');
+  var digest = crypto.createHash('sha256').update(source).digest('hex').slice(0, 12);
+  assert(html.includes('./' + file + '?v=' + digest + '"'), file + ' cache key matches content');
+});
+assert(/^\/\*\r?\n  Cache-Control: no-cache$/m.test(fs.readFileSync(path.join(__dirname, '..', '_headers'), 'utf8')), 'all routes revalidate cached responses');
+
 console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===');
 if (failed > 0) process.exit(1);
