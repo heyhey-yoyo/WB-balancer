@@ -94,6 +94,12 @@ npx wrangler pages deploy . --project-name wb-balancer
 
 MIT
 
+---
+
+> AI 编程代理请阅读 [AGENTS.md](./AGENTS.md) 了解代码架构、测试与开发约定。
+
+---
+
 ## AI 维护提醒
 
 > **⚠️ 任何修改此项目的 AI 代理都必须同步更新本文件与 AGENTS.md。**
