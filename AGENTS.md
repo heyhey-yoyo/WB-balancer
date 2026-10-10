@@ -58,7 +58,7 @@
 1. DOM 引用集中在 `elements` 对象中
 2. 格式化函数：`formatVolume()` / `formatNumber()` / `formatConcentration()` / `formatIntensity()` / `escapeHtml()`
 3. 结果列定义（纯函数）：`RESULT_COLUMNS` 按模式声明每列的表格表头、复制表头、HTML 单元格与复制文本（含 `loading-col` 类）；`resultHeaders()` / `resultTableHtml()` / `resultCopyRows()` 供渲染与复制共用——**表头和列定义只维护这一份**
-4. 状态管理：`getDefaultState()` / `loadState()` / `saveState()`（localStorage，对 `state` 做浅拷贝后移除 `samples` 引用避免重复存储）/ `loadModeSamples()`（`state.samples` 直接引用 `state.samplesByMode[mode]`，不再双写）
+4. 状态管理：`getDefaultState()` / `loadState()` / `saveState()`（localStorage，对 `state` 做浅拷贝后移除 `samples` 引用避免重复存储）/ `loadModeSamples()`（`state.samples` 直接引用 `state.samplesByMode[mode]`，不重复持久化）
 5. `syncControlsFromState()`：按当前模式显示/隐藏对应设置项，prep 模式下显示目标蛋白量和最终体积
 6. `calculate()`：读取设置 → 委托对应 calculator 函数 → `renderResults()` + `saveState()`
 7. 渲染：`renderSampleRows()`（按模式显示不同列）、`renderResults()`（统计卡片 + 提示条 + 结果表格）
@@ -157,7 +157,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 页眉背景和底部分隔线横跨页面可用宽度，内容区最大宽度 1280px（含两侧各 16px 内边距），整体居中；品牌和标题靠左，操作区靠右，窄屏换行后仍保持该对齐。品牌页眉在文档顶部正常排布，随页面滚走，不固定或吸顶；表格内部表头、侧边工具和手机底部导航可按功能保留。
 
-正文采用统一系统无衬线字体，默认 16px / 1.6；标题采用 Georgia、Times New Roman、Songti SC、STSong 衬线族。数字与代码可使用 SFMono-Regular、Consolas、Liberation Mono、Microsoft YaHei 等宽族。按钮和输入通常 15px，辅助文字 12–14px，密集科学数据允许有理由的局部调整。页面底色 #f3eee5、正文 #24221f、赤陶强调 #a94f31，柔和底色上的强调文字 #823a25；科学分类色、热图、作品主题与状态色保留必要区分度。
+正文采用统一系统无衬线字体，默认 16px / 1.6；标题采用 Georgia、Times New Roman、Songti SC、STSong 衬线族。数字与代码可使用 SFMono-Regular、Consolas、Liberation Mono、Microsoft YaHei 等宽族。按钮和输入通常 15px，辅助文字 12–14px，密集科学数据允许有理由的局部调整。页面底色 #f3eee5、正文 #24221f、赤陶强调 #a94f31；科学分类色、热图、作品主题与状态色保留必要区分度。
 
 主样式保留一个顶层 `:root`，条件规则和深色画布局部令牌独立维护，避免叠加重复主题或末尾覆盖层。修改视觉后核对实际渲染字体、字号、间距、对比度和操作可达性；至少检查 1440、820、390px，涉及断点时补查两侧宽度，涉及画布或存储时补查交互。构建、单测、本地浏览器和线上部署分别记录；发布后禁用缓存/硬刷新，并核对实际资源版本。
 
