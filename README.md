@@ -90,7 +90,7 @@ Loading Buffer 体积 = 终体积 ÷ Buffer 倍数
 
 对外版本以 GitHub Release 为准；项目没有独立的应用版本常量，发布不更改本地存储格式。
 
-部署到 Cloudflare Pages：连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空，输出目录 `.`），或命令行：
+部署到 Cloudflare Pages：连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`），或命令行：
 
 ```bash
 npx wrangler pages deploy . --project-name wb-balancer

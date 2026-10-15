@@ -98,8 +98,6 @@ node tests/test-ui-state.js
 
 ## 代码组织与风格约定
 
-对外版本以 GitHub Release 为准；项目没有独立的应用版本常量，发布不更改本地存储格式。
-
 ### 计算公式（修改逻辑时勿改错）
 
 展示理论体积，不按移液器步进取整；预稀释建议 `adjustedVolume` 保留到 0.001 µL，界面另做显示格式化。用户自行判断实际移液量。
@@ -166,6 +164,8 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 正常样本体积和 Loading 列使用 #ebe4d8 底、#24221f 加粗文字；错误与警告保留语义色。lossMargin、loadingBufferFactor 的非法输入保留空值并阻止输出，不使用静默默认值。手机输入与宽表保持可达，不改变配平公式。
 
 ## 部署
+
+对外版本以 GitHub Release 为准；项目没有独立的应用版本常量，发布不更改本地存储格式。
 
 - 推荐 Cloudflare Pages 连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`）；
 - 或命令行：`npx wrangler login` 一次，然后 `npx wrangler pages deploy . --project-name wb-balancer`（项目名须与 `wrangler.toml` 一致）。
