@@ -20,7 +20,7 @@
 
 ## 技术栈与运行架构
 
-- HTML5 / CSS3 / 原生 JavaScript（ES2020+，使用了 `replaceAll`、可选链等语法）。
+- HTML5 / CSS3 / 原生 JavaScript（ES2020+，使用了 `replaceAll` 等语法）。
 - 两个 JS 文件均以 `defer` 方式加载：`calculator.js`（纯计算）先于 `app.js`（UI 控制器）执行。`calculator.js` 的函数暴露为全局变量，`app.js` 直接调用。
 - 部署目标为 **Cloudflare Pages**（纯静态托管），由 `wrangler.toml` 和 `_headers` 配置。
 - 浏览器 API 依赖：`localStorage`、`navigator.clipboard`（带 `window.prompt` 降级方案）。
@@ -46,7 +46,7 @@
 
 `calculator.js`（纯函数，无 DOM 依赖，可脱离浏览器在 Node 中测试）：
 
-1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `isSampleNumericallyValid()`（仅看数字字段，用于参考值计算）/ `isSampleComplete()`（含名称，目前仅导出未在 UI 使用）
+1. 工具函数：`toFiniteNumber()` / `suggestPreDilution()` / `validateLossMargin()`（0%–50%）/ `lossScaleFactor()`（损耗补偿系数）/ `isSampleNumericallyValid()`（仅看数字字段，用于参考值计算）/ `isSampleComplete()`（含名称，目前仅导出未在 UI 使用）
 2. 各模式共用辅助：`createMessages()`（收集消息并决定 severity）/ `multiplyFinite()`（理论体积 × 放大系数）/ `scaledTotal()`（最终体积 × 放大系数）/ `applyPreDilution()`（预稀释建议）/ `warnMissingName()` / `normalizeZeroVolume()`（1e-9 µL 内的余量归零）/ `warnSmallLoading()` / `errorIfNotEnoughAvailable()` / `warnPreDilution()` / `allPositive()`（范围错误检测）
 3. 各模式计算：`calculateEqualize()` / `calculatePerWell()` / `calculateRebalance()` / `calculatePrep()`——统一返回 `{ results, reference, summary }`
 4. 计算链：理论体积 → 损耗余量同比放大 → 预稀释检查 → Loading/补液。不做移液取整。
