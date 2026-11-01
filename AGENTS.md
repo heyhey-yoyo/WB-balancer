@@ -16,7 +16,7 @@
 - **无构建步骤、无依赖**：纯 HTML + CSS + 原生 JavaScript，没有 `package.json`、没有打包器、没有框架。
 - **无后端**：所有计算在浏览器本地完成，数据通过 `localStorage`（键名 `wb-balancer-v4`）保存，不上传任何服务器。每个模式的样本数据分开保存（`state.samplesByMode`），切换模式互不影响。
 - 支持粘贴数据导入（制表符分隔，从 Excel 复制）、复制结果到剪贴板（制表符分隔）。
-- 界面与文档语言为**简体中文**（`lang="zh-CN"`），代码注释和面向用户的文本均使用中文。
+- 界面与文档语言为**简体中文**（`lang="zh-CN"`）；新增或修改的代码注释与用户文本使用中文，专业名词和既有测试断言中的技术标识可保留英文。
 
 ## 技术栈与运行架构
 
@@ -82,7 +82,7 @@
 
 验证改动的方式：
 
-1. `node tests/test-calculator.js` 与 `node tests/test-ui-state.js` 全部通过，且全部 JS 文件 `node --check` 通过；
+1. `node tests/test-calculator.js` 覆盖四种计算路径、损耗/预稀释、微量体积和边界值；`node tests/test-ui-state.js` 覆盖状态恢复、结果表转义、0.005 µL 显示与 `?v=` 摘要。两者全部通过，且全部 JS 文件 `node --check` 通过；
 2. 用上述任一方式在浏览器打开页面，四种模式各切换一次，确认设置项和表格列随模式正确显隐；prep 模式下目标蛋白量可见且可编辑；
 3. 输入/修改样本浓度或 ImageJ 值，确认各体积按公式变化、组分之和等于总体积（守恒）、校验消息和状态徽章正确；
 4. 测试粘贴数据（各模式列映射正确，只填充该模式的有效列）和复制结果；
@@ -157,7 +157,7 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 正文采用统一系统无衬线字体，默认 16px / 1.6；标题采用 Georgia、Times New Roman、Songti SC、STSong 衬线族。数字与代码可使用 SFMono-Regular、Consolas、Liberation Mono、Microsoft YaHei 等宽族。按钮和输入通常 15px，辅助文字 12–14px，密集科学数据允许有理由的局部调整。页面底色 #f3eee5、正文 #24221f、赤陶强调 #a94f31；科学分类色、热图、作品主题与状态色保留必要区分度。
 
-主样式保留一个顶层 `:root`，条件规则和深色画布局部令牌独立维护，避免叠加重复主题或末尾覆盖层。修改视觉后核对实际渲染字体、字号、间距、对比度和操作可达性；至少检查 1440、820、390px，涉及断点时补查两侧宽度，涉及画布或存储时补查交互。构建、单测、本地浏览器和线上部署分别记录；发布后禁用缓存/硬刷新，并核对实际资源版本。
+主样式保留一个顶层 `:root`，条件规则和深色画布局部令牌独立维护，避免叠加重复主题或末尾覆盖层。修改视觉后核对实际渲染字体、字号、间距、对比度和操作可达性；至少检查 1440、820、390px，涉及断点时补查两侧宽度，涉及画布或存储时补查交互。构建、单测、本地浏览器和线上部署分别记录；发布后分别检查新访问、已有缓存下的普通刷新和必要的硬刷新诊断，核对线上资源摘要与最终部署提交。本项目无 Service Worker，不虚构其升级步骤；硬刷新只作辅助诊断。
 
 ### 交互与数据约束
 
@@ -167,8 +167,8 @@ prep：scaleFactor = 1 / (1 − 预计损耗率)；
 
 对外版本以 GitHub Release 为准；项目没有独立的应用版本常量，发布不更改本地存储格式。
 
-- 推荐 Cloudflare Pages 连接 GitHub 仓库自动部署（Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`）；
-- 或命令行：`npx wrangler login` 一次，然后 `npx wrangler pages deploy . --project-name wb-balancer`（项目名须与 `wrangler.toml` 一致）。
+- 推荐 Cloudflare Pages 连接 GitHub 仓库自动部署（按 Git 集成配置；实际接入状态以 Cloudflare Dashboard 为准）。Framework preset 选 `None`，build command 留空或 `exit 0`，输出目录 `.`。
+- 直接上传仅作故障替代：仅当 Cloudflare 无法提交 Git 构建任务时，才将该最终提交的已验证产物直接上传；上传前须保留构建失败证据与完整提交 SHA，并记录替代部署证据。不能把 CLI 成功当成 Git 集成构建成功。登录一次后执行 `npx wrangler pages deploy . --project-name wb-balancer`（项目名须与 `wrangler.toml` 一致）。
 
 发布缓存约定：`_headers` 对全站设置 `Cache-Control: no-cache`；`index.html` 引用的 `styles.css`、`calculator.js`、`app.js` 携带各文件按 CRLF→LF 归一后的 SHA-256 前 12 位作为 `v` 查询标识。修改这三个文件时同步刷新对应标识，首次访问新 URL 可避开旧版本仍处于有效期的浏览器或边缘缓存。状态测试核对三个内容标识和缓存响应头；上线后还需核对实际响应头与资源摘要。
 
